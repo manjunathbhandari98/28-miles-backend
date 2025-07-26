@@ -10,6 +10,8 @@ public interface AddressService {
 
     List<AddressResponse> getAddressByUser(String userId);
 
-    AddressResponse updateAddress(String addressId, AddressRequest request)
+    AddressResponse updateAddress(String addressId, AddressRequest request);
+
+    void deleteAddress(String addressId);
 
 }

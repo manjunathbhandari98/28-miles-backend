@@ -26,4 +26,17 @@ public class AddressController {
         List<AddressResponse> addressResponses = addressService.getAddressByUser(userId);
         return ResponseEntity.ok(addressResponses);
     }
+
+    @PutMapping("/update/{addressId}")
+    public ResponseEntity<AddressResponse> updateAddress(@PathVariable String addressId,
+                                                         @RequestBody AddressRequest addressRequest){
+        AddressResponse addressResponse = addressService.updateAddress(addressId, addressRequest);
+        return ResponseEntity.ok(addressResponse);
+    }
+
+    @DeleteMapping("/{addressId}")
+    public ResponseEntity<String> deleteAddress(@PathVariable String addressId){
+        addressService.deleteAddress(addressId);
+        return ResponseEntity.ok("Address Deleted Successfully");
+    }
 }

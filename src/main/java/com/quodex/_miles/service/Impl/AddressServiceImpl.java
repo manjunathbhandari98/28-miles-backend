@@ -2,6 +2,7 @@ package com.quodex._miles.service.Impl;
 
 import com.quodex._miles.entity.Address;
 import com.quodex._miles.entity.User;
+import com.quodex._miles.exception.ResourceNotFoundException;
 import com.quodex._miles.io.AddressRequest;
 import com.quodex._miles.io.AddressResponse;
 import com.quodex._miles.repository.AddressRepository;
@@ -41,8 +42,36 @@ public class AddressServiceImpl implements AddressService {
 
     @Override
     public AddressResponse updateAddress(String addressId, AddressRequest request) {
-        return null;
+        Address address = addressRepository.findByAddressId(addressId)
+                .orElseThrow(() -> new ResourceNotFoundException("Address Not Found"));
+
+        address.setFullName(request.getFullName());
+        address.setPhone(request.getPhone());
+        address.setStreet(request.getStreet());
+        address.setCity(request.getCity());
+        address.setState(request.getState());
+        address.setPostalCode(request.getPostalCode());
+        address.setCountry(request.getCountry());
+        address.setDefault(request.isDefault());
+
+        // If you're allowing address transfer to another user (optional)
+        if (request.getUserId() != null && !request.getUserId().equals(address.getUser().getUserId())) {
+            User user = userRepository.getByUserId(request.getUserId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + request.getUserId()));
+            address.setUser(user);
+        }
+
+        Address updated = addressRepository.save(address);
+        return convertToDTO(updated);
     }
+
+    @Override
+    public void deleteAddress(String addressId){
+        Address address = addressRepository.findByAddressId(addressId)
+                .orElseThrow(() -> new ResourceNotFoundException("Address Not Found"));
+        addressRepository.delete(address);
+    }
+
 
     private AddressResponse convertToDTO(Address saved) {
         return AddressResponse.builder()
