@@ -43,7 +43,7 @@ public class Address {
     @PrePersist
     public void generateAddressId(){
         if (this.addressId == null || this.addressId.isEmpty()){
-            this.addressId = "ADR-"+UUID.randomUUID().toString().substring(0,7);
+            this.addressId = "ADR"+UUID.randomUUID().toString().toUpperCase().substring(0,7);
         }
     }
 }

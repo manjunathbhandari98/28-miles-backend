@@ -29,6 +29,6 @@ public class ProductResponse {
     private Boolean isTrending;
     private String material;
     private ProductFeatures productFeatures;
-    private List<Reviews> reviews;
+    private List<ReviewResponse> reviews;
     private Double rating;
 }

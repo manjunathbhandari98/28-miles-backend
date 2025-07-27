@@ -32,7 +32,7 @@ public class Category {
     @PrePersist
     public void generateCategoryId() {
         if (this.categoryId == null) {
-            this.categoryId = "CAT-" + UUID.randomUUID().toString().substring(0, 7);
+            this.categoryId = "CAT" + UUID.randomUUID().toString().toUpperCase().substring(0, 7);
         }
     }
 }

@@ -35,7 +35,7 @@ public class CartItem {
     @PrePersist
     public void generateCartId(){
         if(this.cartItemId == null){
-            this.cartItemId = "CRT-ITM-"+ UUID.randomUUID().toString().toUpperCase().substring(0,7);
+            this.cartItemId = "CRTITM"+ UUID.randomUUID().toString().toUpperCase().substring(0,7);
         }
     }
 }

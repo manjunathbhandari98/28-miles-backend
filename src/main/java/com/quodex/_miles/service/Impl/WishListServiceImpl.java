@@ -1,10 +1,12 @@
 package com.quodex._miles.service.Impl;
 
 import com.quodex._miles.entity.Product;
+import com.quodex._miles.entity.Reviews;
 import com.quodex._miles.entity.User;
 import com.quodex._miles.entity.WishList;
 import com.quodex._miles.exception.ResourceNotFoundException;
 import com.quodex._miles.io.ProductResponse;
+import com.quodex._miles.io.ReviewResponse;
 import com.quodex._miles.io.WishListRequest;
 import com.quodex._miles.io.WishListResponse;
 import com.quodex._miles.repository.ProductRepository;
@@ -91,7 +93,7 @@ public class WishListServiceImpl implements WishListService {
                         .categoryId(product.getCategory().getCategoryId())
                         .categoryName(product.getCategory().getCategoryName())
                         .productFeatures(product.getProductFeatures())
-                        .reviews(product.getReviews())
+                        .reviews(mapReviews(product.getReviews()))
                         .build()
                 ).toList();
 
@@ -100,5 +102,17 @@ public class WishListServiceImpl implements WishListService {
                 .userId(wishlist.getUser().getUserId())
                 .products(productResponses)
                 .build();
+    }
+
+    private List<ReviewResponse> mapReviews(List<Reviews> reviews) {
+        return reviews.stream()
+                .map(review -> ReviewResponse.builder()
+                        .reviewId(review.getReviewId())
+                        .comment(review.getComment())
+                        .rating(review.getRating())
+                        .userId(review.getUser().getUserId())
+                        .productId(review.getProduct().getProductId())
+                        .build())
+                .toList();
     }
 }

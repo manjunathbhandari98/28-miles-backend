@@ -1,23 +1,42 @@
 package com.quodex._miles.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.NoArgsConstructor;
-
-import jakarta.persistence.Embeddable;
+import jakarta.persistence.*;
 import lombok.*;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
-@Embeddable
+@Entity
 @Data
+@Table(name = "reviews")
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class Reviews {
-    private String name;
-    private String email;
-    private boolean isVerifiedUser;
-    private String review;
-    private Double rating;
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String reviewId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id")
+    private Product product;
+
+    private double rating; // Typically 1 to 5
+
+    @Column(length = 1000)
+    private String comment;
+
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    public void prePersist() {
+        this.reviewId = "REV" + UUID.randomUUID().toString().toUpperCase().substring(0, 7);
+        this.createdAt = LocalDateTime.now();
+    }
 }

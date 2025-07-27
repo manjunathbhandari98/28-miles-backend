@@ -65,13 +65,13 @@ public class Product {
     @Embedded
     private ProductFeatures productFeatures;
 
-    @ElementCollection
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Reviews> reviews;
 
     @PrePersist
     public void generateProductId() {
         if (this.productId == null) {
-            this.productId = "PRD-" + UUID.randomUUID().toString().substring(0, 7);
+            this.productId = "PRD" + UUID.randomUUID().toString().toUpperCase().substring(0, 7);
         }
     }
 }

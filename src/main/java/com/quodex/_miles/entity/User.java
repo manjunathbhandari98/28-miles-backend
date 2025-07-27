@@ -42,9 +42,9 @@ public class User {
         if (this.userId == null) {
             if (this.role == null || this.role == Role.USER) {
                 this.role = Role.USER; // default if null
-                this.userId = "USR-" + UUID.randomUUID().toString().substring(0,7);
+                this.userId = "USR" + UUID.randomUUID().toString().toUpperCase().substring(0,7);
             } else if (this.role == Role.ADMIN) {
-                this.userId = "ADM-" + UUID.randomUUID().toString().substring(0,7);
+                this.userId = "ADM" + UUID.randomUUID().toString().toUpperCase().substring(0,7);
             }
         }
     }

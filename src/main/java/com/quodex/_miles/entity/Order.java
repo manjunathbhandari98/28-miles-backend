@@ -45,7 +45,7 @@ public class Order {
     @PrePersist
     public void generateOrderId(){
         if(this.orderId == null){
-            this.orderId = "ORD-"+ UUID.randomUUID().toString().substring(0,7);
+            this.orderId = "ORD"+ UUID.randomUUID().toString().toUpperCase().substring(0,7);
         }
         if(this.orderDate == null){
             this.orderDate = LocalDateTime.now();

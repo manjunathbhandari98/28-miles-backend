@@ -38,7 +38,7 @@ public class WishList {
     @PrePersist
     public void generateWishListId(){
         if(this.wishListId == null){
-            this.wishListId = "WSL-"+ UUID.randomUUID().toString().toUpperCase().substring(0,7);
+            this.wishListId = "WSLT"+ UUID.randomUUID().toString().toUpperCase().substring(0,7);
         }
     }
 }

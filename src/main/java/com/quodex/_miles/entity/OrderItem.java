@@ -34,7 +34,7 @@ public class OrderItem {
     @PrePersist
     public void generateOrderItemId(){
         if(this.orderItemId == null){
-            this.orderItemId = "ORD-ITM-"+ UUID.randomUUID().toString().toUpperCase().substring(0,7);
+            this.orderItemId = "ORDITM"+ UUID.randomUUID().toString().toUpperCase().substring(0,7);
         }
     }
 }

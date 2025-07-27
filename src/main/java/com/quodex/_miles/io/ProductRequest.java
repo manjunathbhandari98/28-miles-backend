@@ -27,5 +27,4 @@ public class ProductRequest {
     private Boolean isTrending;
     private String material;
     private ProductFeatures productFeatures;
-    private List<Reviews> reviews;
 }
