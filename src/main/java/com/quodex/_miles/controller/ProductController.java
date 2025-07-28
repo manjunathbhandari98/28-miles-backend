@@ -1,12 +1,16 @@
 package com.quodex._miles.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quodex._miles.io.ProductRequest;
 import com.quodex._miles.io.ProductResponse;
 import com.quodex._miles.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -16,10 +20,18 @@ import java.util.List;
 public class ProductController {
     private final ProductService productService;
 
+
     @PostMapping
-    public ResponseEntity<ProductResponse> addProducts(@RequestBody ProductRequest request){
-        ProductResponse productResponse = productService.addProduct(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(productResponse);
+    public ProductResponse addProducts(@RequestPart("product") String product,
+                                                       @RequestPart("images") List<MultipartFile> files){
+        ObjectMapper mapper = new ObjectMapper();
+        ProductRequest productRequest;
+        try{
+            productRequest = mapper.readValue(product, ProductRequest.class);
+            return  productService.addProduct(productRequest, files);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @GetMapping
@@ -34,11 +46,21 @@ public class ProductController {
         return ResponseEntity.ok(productResponse);
     }
 
-    @PutMapping("/update/{productId}")
-    public ResponseEntity<ProductResponse> updateProduct(@PathVariable String productId,
-                                                        @RequestBody ProductRequest request){
-        ProductResponse productResponse = productService.updateProduct(productId, request);
-        return ResponseEntity.ok(productResponse);
+    @PutMapping(value = "/update/{productId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ProductResponse updateProduct(
+            @PathVariable String productId,
+            @RequestPart("product") String request,
+            @RequestPart(value = "images", required = false) List<MultipartFile> files
+    ){
+        ObjectMapper mapper = new ObjectMapper();
+        ProductRequest productRequest;
+        try{
+            productRequest = mapper.readValue(request, ProductRequest.class);
+            return productService.updateProduct(productId, productRequest, files);
+        }
+        catch (RuntimeException | JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @DeleteMapping("/{productId}")

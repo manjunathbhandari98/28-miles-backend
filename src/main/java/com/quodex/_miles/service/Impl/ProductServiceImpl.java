@@ -15,8 +15,13 @@ import com.quodex._miles.service.ProductService;
 import com.quodex._miles.util.SlugUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -26,9 +31,14 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final ReviewRepository reviewRepository;
+    private final FileUploadServiceImpl fileUploadService;
 
     @Override
-    public ProductResponse addProduct(ProductRequest request) {
+    public ProductResponse addProduct(
+            @RequestPart("product") ProductRequest request,
+            @RequestPart("files") List<MultipartFile> files
+    )
+    {
         String slug = (request.getSlug() == null || request.getSlug().isEmpty())
                 ? SlugUtil.toSlug(request.getName())
                 : SlugUtil.toSlug(request.getSlug());
@@ -39,6 +49,15 @@ public class ProductServiceImpl implements ProductService {
 
         Category category = categoryRepository.findByCategoryId(request.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category Not Found"));
+
+        if (files != null && !files.isEmpty()) {
+            List<String> imgUrls = files.stream()
+                    .map(fileUploadService::uploadFile)
+                    .collect(Collectors.toList());
+
+            request.setImages(imgUrls);
+        }
+
 
         Product product = Product.builder()
                 .name(request.getName())
@@ -79,7 +98,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public ProductResponse updateProduct(String productId, ProductRequest request) {
+    public ProductResponse updateProduct(String productId, ProductRequest request, List<MultipartFile> files) {
         Product product = productRepository.findByProductId(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product Not Found"));
 
@@ -94,6 +113,20 @@ public class ProductServiceImpl implements ProductService {
         Category category = categoryRepository.findByCategoryId(request.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category Not Found"));
 
+        //  Combine old images + new images
+        List<String> combinedImages = new ArrayList<>();
+
+        if (request.getImages() != null) {
+            combinedImages.addAll(request.getImages()); // Keep selected old images
+        }
+
+        if (files != null && !files.isEmpty()) {
+            List<String> newUploadedImages = files.stream()
+                    .map(fileUploadService::uploadFile)
+                    .toList();
+            combinedImages.addAll(newUploadedImages);
+        }
+
         product.setName(request.getName());
         product.setSlug(slug);
         product.setDescription(request.getDescription());
@@ -102,7 +135,7 @@ public class ProductServiceImpl implements ProductService {
         product.setColors(request.getColors());
         product.setSizes(request.getSizes());
         product.setTags(request.getTags());
-        product.setImages(request.getImages());
+        product.setImages(combinedImages); // final image list (old + new)
         product.setProductFeatures(request.getProductFeatures());
         product.setMaterial(request.getMaterial());
         product.setGender(request.getGender());
@@ -110,10 +143,10 @@ public class ProductServiceImpl implements ProductService {
         product.setIsTrending(request.getIsTrending());
         product.setCategory(category);
 
-        // Don't set reviews here. Rating will be updated separately.
         Product updatedProduct = productRepository.save(product);
         return convertToResponse(updatedProduct);
     }
+
 
     @Override
     public void deleteProduct(String productId) {
