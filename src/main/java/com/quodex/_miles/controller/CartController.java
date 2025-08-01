@@ -23,8 +23,14 @@ public class CartController {
     }
 
     @GetMapping("/{userId}")
-    public ResponseEntity<List<CartResponse>> getCartByUser(@PathVariable String userId){
-        List<CartResponse> response = cartService.getCartByUser(userId);
+    public ResponseEntity<CartResponse> getCartByUser(@PathVariable String userId){
+        CartResponse response = cartService.getCartByUser(userId);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/guest/{cartId}")
+    public ResponseEntity<CartResponse> getCartByCartId(@PathVariable String cartId){
+        CartResponse response = cartService.getCartByCartId(cartId);
         return ResponseEntity.ok(response);
 
     }
@@ -42,10 +48,29 @@ public class CartController {
         return ResponseEntity.ok(response);
     }
 
+
+    @PutMapping("/update-quantity")
+    public ResponseEntity<CartResponse> updateCartItemQuantity(
+            @RequestParam String cartId,
+            @RequestParam String productId,
+            @RequestParam String size,
+            @RequestParam String color,
+            @RequestParam int quantity
+    ){
+        CartResponse response = cartService.updateCartItemQuantity(cartId, productId, size, color, quantity);
+        return ResponseEntity.ok(response);
+    }
+
     @DeleteMapping("/{cartId}")
     public ResponseEntity<String> deleteCart(@PathVariable String cartId){
         cartService.deleteCart(cartId);
         return ResponseEntity.ok("Cart Deleted");
+    }
+
+    @DeleteMapping("/item/{cartItemId}")
+    public ResponseEntity<String> deleteCartItem(@PathVariable String cartItemId){
+        cartService.deleteCartItem(cartItemId);
+        return ResponseEntity.ok("Cart Item Deleted");
     }
 
     @PostMapping("/merge")

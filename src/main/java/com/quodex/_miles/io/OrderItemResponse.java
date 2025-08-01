@@ -18,4 +18,5 @@ public class OrderItemResponse {
     private int quantity;
     private double price;
     private String image;
+    private Double total;
 }

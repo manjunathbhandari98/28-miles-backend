@@ -15,12 +15,15 @@ import com.quodex._miles.repository.WishListRepository;
 import com.quodex._miles.service.WishListService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class WishListServiceImpl implements WishListService {
 
     private final WishListRepository wishListRepository;
@@ -42,8 +45,11 @@ public class WishListServiceImpl implements WishListService {
                         .products(new ArrayList<>())
                         .build());
 
-        // Avoid duplicates
-        if (!wishList.getProducts().contains(product)) {
+        // Check for duplicates using productId comparison for better reliability
+        boolean productExists = wishList.getProducts().stream()
+                .anyMatch(p -> p.getProductId().equals(product.getProductId()));
+
+        if (!productExists) {
             wishList.getProducts().add(product);
         }
 
@@ -51,26 +57,61 @@ public class WishListServiceImpl implements WishListService {
         return convertToResponse(saved);
     }
 
-  @Override
-  public WishListResponse getWishListByUser(String userId){
-      User user = userRepository.getByUserId(userId)
-              .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
+    @Override
+    public WishListResponse getWishListByUser(String userId) {
+        User user = userRepository.getByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
 
-      WishList wishList = wishListRepository.findByUser(user)
-              .orElseThrow(() -> new ResourceNotFoundException("Wishlist not found for user ID: " + userId));
+        WishList wishList = wishListRepository.findByUser(user)
+                .orElseThrow(() -> new ResourceNotFoundException("Wishlist not found for user ID: " + userId));
 
-      return convertToResponse(wishList);
-  }
+        return convertToResponse(wishList);
+    }
 
     @Override
     public void deleteWishList(String wishListId) {
         WishList wishList = wishListRepository.findByWishListId(wishListId);
-        if(wishList == null){
+        if (wishList == null) {
             throw new ResourceNotFoundException("WishList Not Found");
         }
         wishListRepository.delete(wishList);
     }
 
+    // New method to remove specific product from wishlist
+    @Override
+    public WishListResponse removeProductFromWishList(String userId, String productId) {
+        User user = userRepository.getByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + userId));
+
+        WishList wishList = wishListRepository.findByUser(user)
+                .orElseThrow(() -> new ResourceNotFoundException("Wishlist not found for user ID: " + userId));
+
+        Product productToRemove = productRepository.findByProductId(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product Not Found"));
+
+        boolean removed = wishList.getProducts().remove(productToRemove);
+
+        WishList saved = wishListRepository.save(wishList);
+        return convertToResponse(saved);
+    }
+
+
+    // New method to check if product exists in wishlist
+    @Override
+    public boolean isProductInWishList(String userId, String productId) {
+        Optional<User> userOpt = userRepository.getByUserId(userId);
+        if (userOpt.isEmpty()) {
+            return false;
+        }
+
+        Optional<WishList> wishListOpt = wishListRepository.findByUser(userOpt.get());
+        if (wishListOpt.isEmpty()) {
+            return false;
+        }
+
+        return wishListOpt.get().getProducts().stream()
+                .anyMatch(product -> product.getProductId().equals(productId));
+    }
 
     private WishListResponse convertToResponse(WishList wishlist) {
         List<ProductResponse> productResponses = wishlist.getProducts().stream()
@@ -90,8 +131,8 @@ public class WishListServiceImpl implements WishListService {
                         .colors(product.getColors())
                         .tags(product.getTags())
                         .images(product.getImages())
-                        .categoryId(product.getCategory().getCategoryId())
-                        .categoryName(product.getCategory().getCategoryName())
+                        .categoryId(product.getCategory() != null ? product.getCategory().getCategoryId() : null)
+                        .categoryName(product.getCategory() != null ? product.getCategory().getCategoryName() : null)
                         .productFeatures(product.getProductFeatures())
                         .reviews(mapReviews(product.getReviews()))
                         .build()
@@ -105,6 +146,10 @@ public class WishListServiceImpl implements WishListService {
     }
 
     private List<ReviewResponse> mapReviews(List<Reviews> reviews) {
+        if (reviews == null || reviews.isEmpty()) {
+            return new ArrayList<>();
+        }
+
         return reviews.stream()
                 .map(review -> ReviewResponse.builder()
                         .reviewId(review.getReviewId())

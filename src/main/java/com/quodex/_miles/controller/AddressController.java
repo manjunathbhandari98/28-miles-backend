@@ -15,9 +15,9 @@ import java.util.List;
 public class AddressController {
     private final AddressService addressService;
 
-    @PostMapping
-    public ResponseEntity<AddressResponse> addAddress(@RequestBody AddressRequest request){
-        AddressResponse response = addressService.addAddress(request);
+    @PostMapping("/{userId}")
+    public ResponseEntity<AddressResponse> addAddress(@PathVariable String userId, @RequestBody AddressRequest request){
+        AddressResponse response = addressService.addAddress(userId,request);
         return ResponseEntity.ok(response);
     }
 

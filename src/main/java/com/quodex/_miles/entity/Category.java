@@ -25,6 +25,7 @@ public class Category {
 
     @Column(nullable = false)
     private String categoryName;
+    private String imageUrl;
 
     @Column(nullable = false, unique = true)
     private String slug;

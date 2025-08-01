@@ -85,6 +85,8 @@ public class OrderServiceImpl implements OrderService {
                             .image(itemReq.getImage())
                             .quantity(itemReq.getQuantity())
                             .price(itemReq.getPrice())
+                            .total(itemReq.getTotal())
+
                             .order(existingOrder)
                             .build()
                     ).toList();
@@ -104,6 +106,7 @@ public class OrderServiceImpl implements OrderService {
 
         existingAddress.setFullName(newAddressData.getFullName());
         existingAddress.setPhone(newAddressData.getPhone());
+        existingAddress.setEmail(newAddressData.getEmail());
         existingAddress.setStreet(newAddressData.getStreet());
         existingAddress.setCity(newAddressData.getCity());
         existingAddress.setState(newAddressData.getState());
@@ -116,6 +119,7 @@ public class OrderServiceImpl implements OrderService {
         return Address.builder()
                 .fullName(addressRequest.getFullName())
                 .phone(addressRequest.getPhone())
+                .email(addressRequest.getEmail())
                 .street(addressRequest.getStreet())
                 .city(addressRequest.getCity())
                 .state(addressRequest.getState())
@@ -140,6 +144,7 @@ public class OrderServiceImpl implements OrderService {
         Address address = Address.builder()
                 .fullName(request.getShippingAddress().getFullName())
                 .phone(request.getShippingAddress().getPhone())
+                .email(request.getShippingAddress().getEmail())
                 .street(request.getShippingAddress().getStreet())
                 .city(request.getShippingAddress().getCity())
                 .state(request.getShippingAddress().getState())
@@ -153,6 +158,7 @@ public class OrderServiceImpl implements OrderService {
                 .shippingAddress(address)
                 .totalAmount(request.getTotalAmount())
                 .status(request.getStatus() != null ? request.getStatus() : OrderStatus.PENDING)
+
                 .build();
 
         // Map order items and set back reference
@@ -165,6 +171,8 @@ public class OrderServiceImpl implements OrderService {
                 .quantity(itemReq.getQuantity())
                 .price(itemReq.getPrice())
                 .order(order)
+                .total(itemReq.getTotal())
+
                 .build()).collect(Collectors.toList());
 
         order.setItems(orderItems);
@@ -184,12 +192,14 @@ public class OrderServiceImpl implements OrderService {
             response.setQuantity(item.getQuantity());
             response.setPrice(item.getPrice());
             response.setImage(item.getImage());
+            response.setTotal(item.getTotal());
             return response;
         }).toList();
 
         AddressResponse addressResponse = AddressResponse.builder()
                 .fullName(order.getShippingAddress().getFullName())
                 .phone(order.getShippingAddress().getPhone())
+                .email(order.getShippingAddress().getEmail())
                 .street(order.getShippingAddress().getStreet())
                 .city(order.getShippingAddress().getCity())
                 .state(order.getShippingAddress().getState())
@@ -204,6 +214,8 @@ public class OrderServiceImpl implements OrderService {
                 .shippingAddress(addressResponse)
                 .totalAmount(order.getTotalAmount())
                 .status(order.getStatus())
+                .deliveryCharges(order.getDeliveryCharges())
+                .paymentMode(order.getPaymentMode())
                 .build();
     }
 }

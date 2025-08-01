@@ -42,6 +42,9 @@ public class Order {
 
     private LocalDateTime orderDate;
 
+    private String paymentMode;
+    private Double deliveryCharges;
+
     @PrePersist
     public void generateOrderId(){
         if(this.orderId == null){

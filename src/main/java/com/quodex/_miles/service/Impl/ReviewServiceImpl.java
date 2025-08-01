@@ -62,6 +62,7 @@ public class ReviewServiceImpl implements ReviewService {
                 .userId(user.getUserId())
                 .rating(saved.getRating())
                 .comment(saved.getComment())
+                .username(user.getName())
                 .build();
     }
 
@@ -70,6 +71,25 @@ public class ReviewServiceImpl implements ReviewService {
         Reviews reviews = reviewRepository.findByReviewId(reviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("Review Not Found"));
         reviewRepository.delete(reviews);
+    }
+
+    @Override
+    public ReviewResponse getReviewById(String reviewId) {
+        Reviews reviews = reviewRepository.findByReviewId(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Review Not Found"));
+        return convertToResponse(reviews);
+    }
+
+    private ReviewResponse convertToResponse(Reviews reviews) {
+        return ReviewResponse.builder()
+                .reviewId(reviews.getReviewId())
+                .username(reviews.getUser().getName())
+                .rating(reviews.getRating())
+                .userId(reviews.getUser().getUserId())
+                .comment(reviews.getComment())
+                .productId(reviews.getProduct().getProductId())
+                .createdAt(reviews.getCreatedAt())
+                .build();
     }
 
 

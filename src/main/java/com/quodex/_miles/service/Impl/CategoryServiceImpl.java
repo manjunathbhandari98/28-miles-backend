@@ -1,5 +1,6 @@
 package com.quodex._miles.service.Impl;
 
+import com.quodex._miles.constant.Gender;
 import com.quodex._miles.entity.Category;
 import com.quodex._miles.exception.AlreadyExistsException;
 import com.quodex._miles.exception.ResourceNotFoundException;
@@ -10,6 +11,7 @@ import com.quodex._miles.service.CategoryService;
 import com.quodex._miles.util.SlugUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -19,9 +21,10 @@ import java.util.List;
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository categoryRepository;
+    private final FileUploadServiceImpl fileUploadService;
 
     @Override
-    public CategoryResponse addCategory(CategoryRequest request) {
+    public CategoryResponse addCategory(CategoryRequest request, MultipartFile file) {
         if (request.getName() == null || request.getName().trim().isEmpty()) {
             throw new IllegalArgumentException("Category name cannot be empty.");
         }
@@ -36,6 +39,10 @@ public class CategoryServiceImpl implements CategoryService {
         } else{
         request.setSlug(slug);
 
+        }
+        if (file != null && !file.isEmpty()) {
+            String image = fileUploadService.uploadFile(file);
+            request.setImageUrl(image);
         }
 
         Category category = convertToEntity(request);
@@ -55,6 +62,21 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    public List<CategoryResponse> getCategoriesByGender(Gender gender) {
+        return categoryRepository.findDistinctCategoriesByGender(gender).stream().map(
+                this::convertToDTO
+        ).toList();
+    }
+
+    @Override
+    public CategoryResponse getCategoriesBySlug(String slug) {
+        Category category = categoryRepository.findBySlug(slug)
+                .orElseThrow(() -> new ResourceNotFoundException("Category Not found"));
+        return convertToDTO(category);
+    }
+
+
+    @Override
     public CategoryResponse getCategoryByCategoryId(String categoryId) {
         Category category = categoryRepository.findByCategoryId(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category Not found"));
@@ -62,7 +84,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    public CategoryResponse updateCategory(String categoryId, CategoryRequest request) {
+    public CategoryResponse updateCategory(String categoryId, CategoryRequest request, MultipartFile file) {
         Category category = categoryRepository.findByCategoryId(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category Not Found"));
         category.setCategoryName(request.getName());
@@ -70,16 +92,15 @@ public class CategoryServiceImpl implements CategoryService {
                 ? SlugUtil.toSlug(request.getName())
                 : SlugUtil.toSlug(request.getSlug());
 
-
-        if (categoryRepository.existsBySlug(slug)) {
-            throw new AlreadyExistsException("Category slug already exists.");
-        } else{
             category.setSlug(slug);
+
+        if (file != null && !file.isEmpty()) {
+            String image = fileUploadService.uploadFile(file);
+            category.setImageUrl(image);
         }
 
         category = categoryRepository.save(category);
-        CategoryResponse updatedCategory = convertToDTO(category);
-        return updatedCategory;
+        return convertToDTO(category);
 
     }
 
@@ -97,6 +118,7 @@ public class CategoryServiceImpl implements CategoryService {
                 .categoryId(category.getCategoryId())
                 .name(category.getCategoryName())
                 .slug(category.getSlug())
+                .imageUrl(category.getImageUrl())
                 .build();
     }
 
@@ -106,6 +128,7 @@ public class CategoryServiceImpl implements CategoryService {
         return Category.builder()
                 .categoryName(request.getName())
                 .slug(request.getSlug())
+                .imageUrl(request.getImageUrl())
                 .build();
     }
 }

@@ -1,5 +1,6 @@
 package com.quodex._miles.controller;
 
+import com.quodex._miles.io.JWTResponse;
 import com.quodex._miles.io.UserRequest;
 import com.quodex._miles.service.AuthService;
 import lombok.RequiredArgsConstructor;
@@ -19,9 +20,9 @@ public class AuthController {
     }
 
     @PostMapping("/verify")
-    public ResponseEntity<String> verifyOtp(@RequestParam String email, @RequestParam String otp) {
-        String token = authService.verifyOtpAndLogin(email, otp);
-        return ResponseEntity.ok("JWT Token: " + token);
+    public ResponseEntity<JWTResponse> verifyOtp(@RequestParam String email, @RequestParam String otp) {
+        JWTResponse token = authService.verifyOtpAndLogin(email, otp);
+        return ResponseEntity.ok(token);
     }
 
     @PostMapping("/login")

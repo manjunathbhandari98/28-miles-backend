@@ -23,6 +23,8 @@ public class Address {
 
     private String phone;
 
+    private String email;
+
     private String street;
 
     private String city;
@@ -33,7 +35,7 @@ public class Address {
 
     private String country;
 
-    private boolean isDefault = false;
+    private boolean isDefault;
 
     // Optional relationship to User
     @ManyToOne(fetch = FetchType.LAZY)
@@ -41,9 +43,10 @@ public class Address {
     private User user;
 
     @PrePersist
-    public void generateAddressId(){
+    public void prePersist(){
         if (this.addressId == null || this.addressId.isEmpty()){
             this.addressId = "ADR"+UUID.randomUUID().toString().toUpperCase().substring(0,7);
         }
+
     }
 }

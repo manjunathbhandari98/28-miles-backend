@@ -13,6 +13,7 @@ public class AddressResponse {
     private String addressId;
     private String fullName;
     private String phone;
+    private String email;
     private String street;
     private String city;
     private String state;

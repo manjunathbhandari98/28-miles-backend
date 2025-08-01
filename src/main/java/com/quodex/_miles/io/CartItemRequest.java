@@ -17,5 +17,7 @@ public class CartItemRequest {
     private String color;
     private int quantity;
     private double price;
+    private double oldPrice;
     private String image;
+    private Double tax;
 }

@@ -4,6 +4,7 @@ import com.quodex._miles.constant.Gender;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,6 +34,7 @@ public class Product {
     private Gender gender;
 
     private Double oldPrice;
+    private Double tax;
 
     // Assuming Sizes is an @Embeddable or @ElementCollection
     @ElementCollection
@@ -68,10 +70,16 @@ public class Product {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Reviews> reviews;
 
+    private LocalDateTime createdAt;
+
+
     @PrePersist
-    public void generateProductId() {
+    public void prePersist() {
         if (this.productId == null) {
             this.productId = "PRD" + UUID.randomUUID().toString().toUpperCase().substring(0, 7);
+        }
+        if (this.createdAt == null){
+            this.createdAt = LocalDateTime.now();
         }
     }
 }

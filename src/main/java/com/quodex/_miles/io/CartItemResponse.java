@@ -14,9 +14,12 @@ public class CartItemResponse {
     private String cartId;
     private String productId;
     private String productName;
+    private String category;
     private String size;
     private String color;
     private int quantity;
     private double price;
+    private double oldPrice;
     private String image;
+    private Double tax;
 }

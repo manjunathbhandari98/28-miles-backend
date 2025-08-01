@@ -18,5 +18,7 @@ public class OrderRequest {
     private AddressRequest shippingAddress;
     private double totalAmount;
     private OrderStatus status; // e.g., PENDING, SHIPPED, DELIVERED, CANCELLED
+    private String paymentMode;
+    private Double deliveryCharges;
 
 }

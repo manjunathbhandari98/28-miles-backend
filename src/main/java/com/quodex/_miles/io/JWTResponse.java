@@ -5,15 +5,11 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
-
 @Data
-@NoArgsConstructor
 @AllArgsConstructor
+@NoArgsConstructor
 @Builder
-public class CartRequest {
-    private String cartId;
-    private List<CartItemRequest> items;
-    private String userId;
-
+public class JWTResponse {
+    private String token;
+    private LoginResponse user;
 }

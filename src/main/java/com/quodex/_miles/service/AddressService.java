@@ -6,7 +6,7 @@ import com.quodex._miles.io.AddressResponse;
 import java.util.List;
 
 public interface AddressService {
-    AddressResponse addAddress(AddressRequest request);
+    AddressResponse addAddress(String userId, AddressRequest request);
 
     List<AddressResponse> getAddressByUser(String userId);
 

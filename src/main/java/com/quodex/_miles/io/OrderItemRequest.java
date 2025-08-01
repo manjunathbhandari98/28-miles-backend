@@ -20,4 +20,5 @@ public class OrderItemRequest {
     private int quantity;
     private double price;
     private String image;
+    private Double total;
 }

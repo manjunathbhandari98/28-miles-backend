@@ -30,7 +30,10 @@ public class CartItem {
     private String color;
     private int quantity;
     private double price;
+    @Column(name = "old_price")
+    private double oldPrice;
     private String image;
+    private double tax;
 
     @PrePersist
     public void generateCartId(){

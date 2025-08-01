@@ -21,14 +21,13 @@ public class AddressServiceImpl implements AddressService {
     private final AddressRepository addressRepository;
 
     @Override
-    public AddressResponse addAddress(AddressRequest request) {
-        User user = userRepository.getByUserId(request.getUserId())
-                .orElseThrow(() -> new RuntimeException("User not found with ID: " + request.getUserId()));
+    public AddressResponse addAddress(String userId, AddressRequest request) {
+        User user = userRepository.getByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with ID: "+ userId));
 
-        Address address = convertToEntity(request);
+        Address address = convertToEntity(request,user);
         Address saved = addressRepository.save(address);
-        AddressResponse response = convertToDTO(saved);
-        return response;
+        return convertToDTO(saved);
     }
 
     @Override
@@ -47,19 +46,13 @@ public class AddressServiceImpl implements AddressService {
 
         address.setFullName(request.getFullName());
         address.setPhone(request.getPhone());
+        address.setEmail(request.getEmail());
         address.setStreet(request.getStreet());
         address.setCity(request.getCity());
         address.setState(request.getState());
         address.setPostalCode(request.getPostalCode());
         address.setCountry(request.getCountry());
         address.setDefault(request.isDefault());
-
-        // If you're allowing address transfer to another user (optional)
-        if (request.getUserId() != null && !request.getUserId().equals(address.getUser().getUserId())) {
-            User user = userRepository.getByUserId(request.getUserId())
-                    .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + request.getUserId()));
-            address.setUser(user);
-        }
 
         Address updated = addressRepository.save(address);
         return convertToDTO(updated);
@@ -78,23 +71,23 @@ public class AddressServiceImpl implements AddressService {
                 .addressId(saved.getAddressId())
                 .fullName(saved.getFullName())
                 .phone(saved.getPhone())
+                .email(saved.getEmail())
                 .street(saved.getStreet())
                 .city(saved.getCity())
                 .state(saved.getState())
                 .postalCode(saved.getPostalCode())
                 .country(saved.getCountry())
                 .isDefault(saved.isDefault())
-                .userId(saved.getUser().getUserId())
+                .userId(saved.getUser() != null ? saved.getUser().getUserId() : null)
                 .build();
     }
 
-    private Address convertToEntity(AddressRequest request) {
-        User user = userRepository.getByUserId(request.getUserId())
-                .orElseThrow(() -> new RuntimeException("User not found with ID: " + request.getUserId()));
 
+    private Address convertToEntity(AddressRequest request, User user) {
         return Address.builder()
                 .fullName(request.getFullName())
                 .phone(request.getPhone())
+                .email(request.getEmail())
                 .street(request.getStreet())
                 .city(request.getCity())
                 .state(request.getState())
@@ -104,4 +97,5 @@ public class AddressServiceImpl implements AddressService {
                 .user(user)
                 .build();
     }
+
 }

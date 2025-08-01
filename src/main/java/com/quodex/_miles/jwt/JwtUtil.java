@@ -3,6 +3,7 @@ package com.quodex._miles.jwt;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
@@ -10,8 +11,11 @@ import java.util.Date;
 
 @Component
 public class JwtUtil {
-    private final String secret = "2h8f38dh8f8fd93hf93fh983hf9h238rhf932h98rhf23hrf923h9";
-    private final long expirationMs = 86400000; // 1 day
+    @Value("${jwt.secret}")
+    private String secret;
+
+    @Value("${jwt.expiration}")
+    private long expirationMs;
 
     public String generateToken(String email) {
         return Jwts.builder()

@@ -5,6 +5,7 @@ import com.quodex._miles.entity.Reviews;
 import com.quodex._miles.constant.Gender;
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -17,6 +18,7 @@ public class ProductResponse {
     private String slug;
     private Double price;
     private Double oldPrice;
+    private Double tax;
     private Gender gender;
     private List<String> sizes;
     private List<String> colors;
@@ -31,4 +33,5 @@ public class ProductResponse {
     private ProductFeatures productFeatures;
     private List<ReviewResponse> reviews;
     private Double rating;
+    private LocalDateTime createdAt;
 }

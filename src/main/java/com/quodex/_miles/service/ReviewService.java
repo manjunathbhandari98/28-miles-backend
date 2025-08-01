@@ -7,4 +7,6 @@ public interface ReviewService {
     ReviewResponse addReview(ReviewRequest request);
 
     void deleteReview(String reviewId);
+
+    ReviewResponse getReviewById(String reviewId);
 }

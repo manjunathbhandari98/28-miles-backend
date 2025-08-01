@@ -13,4 +13,5 @@ public class CategoryResponse {
     private String categoryId;
     private String name;
     private String slug;
+    private String imageUrl;
 }

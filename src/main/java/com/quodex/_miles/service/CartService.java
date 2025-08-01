@@ -7,10 +7,14 @@ import java.util.List;
 
 public interface CartService {
     CartResponse addToCart(CartRequest request);
-    List<CartResponse> getCartByUser(String userId);
+    CartResponse getCartByUser(String userId);
     CartResponse updateCart(String cartId,CartRequest request);
     void deleteCart(String cartId);
     List<CartResponse> getCartItems();
+    CartResponse getCartByCartId(String cartId);
+    CartResponse updateCartItemQuantity(String cartId, String productId, String size, String color, int newQuantity);
 
     CartResponse mergeGuestCartWithUserCart(String guestCartId, String userId);
+
+    void deleteCartItem(String cartItemId);
 }

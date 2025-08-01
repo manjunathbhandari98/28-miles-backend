@@ -2,8 +2,9 @@ package com.quodex._miles.service.Impl;
 
 import com.quodex._miles.entity.Address;
 import com.quodex._miles.entity.User;
-import com.quodex._miles.exception.ResourceNotFoundException;
 import com.quodex._miles.io.AddressResponse;
+import com.quodex._miles.io.LoginResponse;
+import com.quodex._miles.io.UserRequest;
 import com.quodex._miles.io.UserResponse;
 import com.quodex._miles.repository.UserRepository;
 import com.quodex._miles.service.UserService;
@@ -32,7 +33,27 @@ public class UserServiceImpl implements UserService {
 
         return convertToResponse(user);
 
+    }
 
+    @Override
+    public UserResponse updateUser(String userId, UserRequest request) {
+       return null;
+    }
+
+    private User convertToEntity(UserRequest request) {
+        return User.builder()
+                .name(request.getName())
+                .email(request.getEmail())
+                .phone(request.getPhone())
+                .build();
+    }
+
+    @Override
+    public UserResponse getUsername(String userId){
+        User user = userRepository.getByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+
+        return convertToResponse(user);
     }
 
     private UserResponse convertToResponse(User user) {
@@ -57,6 +78,7 @@ public class UserServiceImpl implements UserService {
                         .country(address.getCountry())
                         .postalCode(address.getPostalCode())
                         .phone(address.getPhone())
+                        .email(address.getEmail())
                         .isDefault(address.isDefault())
                         .userId(address.getUser().getUserId())
                         .build())

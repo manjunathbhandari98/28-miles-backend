@@ -1,10 +1,7 @@
 package com.quodex._miles.io;
 
 import com.quodex._miles.constant.Role;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.util.List;
 

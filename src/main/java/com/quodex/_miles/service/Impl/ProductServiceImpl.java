@@ -1,5 +1,6 @@
 package com.quodex._miles.service.Impl;
 
+import com.quodex._miles.constant.Gender;
 import com.quodex._miles.entity.Category;
 import com.quodex._miles.entity.Product;
 import com.quodex._miles.entity.Reviews;
@@ -14,12 +15,16 @@ import com.quodex._miles.repository.ReviewRepository;
 import com.quodex._miles.service.ProductService;
 import com.quodex._miles.util.SlugUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -58,6 +63,11 @@ public class ProductServiceImpl implements ProductService {
             request.setImages(imgUrls);
         }
 
+        double taxApplicable = request.getPrice() >= 1000
+                ? (request.getPrice() * 0.12)
+                : (request.getPrice() * 0.05);
+
+
 
         Product product = Product.builder()
                 .name(request.getName())
@@ -70,6 +80,7 @@ public class ProductServiceImpl implements ProductService {
                 .description(request.getDescription())
                 .price(request.getPrice())
                 .oldPrice(request.getOldPrice())
+                .tax(taxApplicable)
                 .material(request.getMaterial())
                 .gender(request.getGender())
                 .stock(request.getStock())
@@ -83,12 +94,45 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public List<ProductResponse> getProducts() {
-        return productRepository.findAll()
-                .stream()
-                .map(this::convertToResponse)
-                .toList();
+    public Page<ProductResponse> getAllProducts(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending()); // optional sorting
+        Page<Product> productPage = productRepository.findAll(pageable);
+        return productPage.map(this::convertToResponse);
     }
+
+    @Override
+    public Page<ProductResponse> getNewArrivals(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
+        // 30 days ago
+        LocalDateTime startDate = LocalDateTime.now().minusDays(30);
+
+        Page<Product> productPage = productRepository.findNewArrivals(startDate, pageable);
+
+        // Convert to DTO
+        return productPage.map(this::convertToResponse);
+    }
+
+
+    @Override
+    public Page<ProductResponse> getProductsByFilters(Gender gender, String  categorySlug, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+
+        Page<Product> productPage;
+
+        if (gender != null && categorySlug != null) {
+            productPage = productRepository.findByGenderAndCategory_Slug(gender, categorySlug, pageable);
+        } else if (gender != null) {
+            productPage = productRepository.findByGender(gender, pageable);
+        } else if (categorySlug != null) {
+            productPage = productRepository.findByCategory_Slug(categorySlug, pageable);
+        } else {
+            productPage = productRepository.findAll(pageable);
+        }
+
+        return productPage.map(this::convertToResponse);
+    }
+
 
     @Override
     public ProductResponse getProductById(String productId) {
@@ -96,6 +140,14 @@ public class ProductServiceImpl implements ProductService {
                 .orElseThrow(() -> new ResourceNotFoundException("Product Not Found"));
         return convertToResponse(product);
     }
+
+    @Override
+    public ProductResponse getProductBySlug(String slug) {
+        Product product = productRepository.findBySlug(slug)
+                .orElseThrow(() -> new ResourceNotFoundException("Product Not Found"));
+        return convertToResponse(product);
+    }
+
 
     @Override
     public ProductResponse updateProduct(String productId, ProductRequest request, List<MultipartFile> files) {
@@ -127,11 +179,17 @@ public class ProductServiceImpl implements ProductService {
             combinedImages.addAll(newUploadedImages);
         }
 
+        double taxApplicable = request.getPrice() >= 1000
+                ? (request.getPrice() * 0.12)
+                : (request.getPrice() * 0.05);
+
+
         product.setName(request.getName());
         product.setSlug(slug);
         product.setDescription(request.getDescription());
         product.setPrice(request.getPrice());
         product.setOldPrice(request.getOldPrice());
+        product.setTax(taxApplicable);
         product.setColors(request.getColors());
         product.setSizes(request.getSizes());
         product.setTags(request.getTags());
@@ -155,6 +213,7 @@ public class ProductServiceImpl implements ProductService {
         productRepository.delete(product);
     }
 
+
     private ProductResponse convertToResponse(Product product) {
         return ProductResponse.builder()
                 .productId(product.getProductId())
@@ -163,6 +222,7 @@ public class ProductServiceImpl implements ProductService {
                 .description(product.getDescription())
                 .price(product.getPrice())
                 .oldPrice(product.getOldPrice())
+                .tax(product.getTax())
                 .rating(product.getRating())
                 .gender(product.getGender())
                 .material(product.getMaterial())
@@ -172,9 +232,11 @@ public class ProductServiceImpl implements ProductService {
                 .colors(product.getColors())
                 .tags(product.getTags())
                 .images(product.getImages())
+                .categoryName(product.getCategory().getCategoryName())
                 .categoryId(product.getCategory().getCategoryId())
                 .productFeatures(product.getProductFeatures())
                 .reviews(mapReviews(reviewRepository.findByProduct(product)))
+                .createdAt(product.getCreatedAt())
 // return reviews only for response
                 .build();
     }
@@ -186,7 +248,9 @@ public class ProductServiceImpl implements ProductService {
                         .comment(review.getComment())
                         .rating(review.getRating())
                         .userId(review.getUser().getUserId())
+                        .username(review.getUser().getName())
                         .productId(review.getProduct().getProductId())
+                        .createdAt(review.getCreatedAt())
                         .build())
                 .toList();
     }

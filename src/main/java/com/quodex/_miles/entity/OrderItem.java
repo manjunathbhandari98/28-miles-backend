@@ -27,9 +27,10 @@ public class OrderItem {
     private String productName;
     private String size;
     private String color;
-    private int quantity;
-    private double price;
+    private Integer quantity;
+    private Double price;
     private String image;
+    private Double total;
 
     @PrePersist
     public void generateOrderItemId(){

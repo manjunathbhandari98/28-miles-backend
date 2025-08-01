@@ -4,7 +4,10 @@ import com.quodex._miles.constant.Role;
 import com.quodex._miles.entity.User;
 import com.quodex._miles.exception.AlreadyExistsException;
 import com.quodex._miles.exception.ResourceNotFoundException;
+import com.quodex._miles.io.JWTResponse;
+import com.quodex._miles.io.LoginResponse;
 import com.quodex._miles.io.UserRequest;
+import com.quodex._miles.io.UserResponse;
 import com.quodex._miles.jwt.JwtUtil;
 import com.quodex._miles.repository.UserRepository;
 import com.quodex._miles.service.AuthService;
@@ -62,7 +65,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public String verifyOtpAndLogin(String email, String otp) {
+    public JWTResponse verifyOtpAndLogin(String email, String otp) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -75,15 +78,26 @@ public class AuthServiceImpl implements AuthService {
         }
 
         if (!user.isVerified()) {
-            user.setVerified(true); // Set verified on first successful OTP use
+            user.setVerified(true);
         }
 
-        user.setOtp(null); // Clear OTP
+        user.setOtp(null);
         user.setOtpGeneratedAt(null);
         userRepository.save(user);
-
-        return jwtUtil.generateToken(user.getEmail());
+        LoginResponse response = convertToResponse(user);
+        String token = jwtUtil.generateToken(user.getEmail());
+        return new JWTResponse(token,response);
     }
+
+    private LoginResponse convertToResponse(User user) {
+        return LoginResponse.builder()
+                .name(user.getName())
+                .userId(user.getUserId())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .build();
+    }
+
 
     @Override
     public void resendOtp(String email) {
