@@ -1,6 +1,8 @@
 package com.quodex._miles.entity;
 
 import com.quodex._miles.constant.OrderStatus;
+import com.quodex._miles.constant.PaymentMethod;
+import com.quodex._miles.io.PaymentDetails;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -21,6 +23,7 @@ public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     @Column(unique = true)
     private String orderId;
 
@@ -38,11 +41,17 @@ public class Order {
     private double totalAmount;
 
     @Enumerated(EnumType.STRING)
-    private OrderStatus status; // e.g., PENDING, SHIPPED, DELIVERED, CANCELLED
+    private OrderStatus status; // e.g., PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED, PAYMENT_FAILED
 
     private LocalDateTime orderDate;
 
-    private String paymentMode;
+    // Properly embed PaymentDetails
+    @Embedded
+    private PaymentDetails paymentDetails;
+
+    @Enumerated(EnumType.STRING)
+    private PaymentMethod paymentMethod;
+
     private Double deliveryCharges;
 
     @PrePersist

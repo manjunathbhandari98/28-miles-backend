@@ -1,6 +1,7 @@
 package com.quodex._miles.service.Impl;
 
 import com.quodex._miles.constant.OrderStatus;
+import com.quodex._miles.constant.PaymentMethod;
 import com.quodex._miles.entity.Address;
 import com.quodex._miles.entity.Order;
 import com.quodex._miles.entity.OrderItem;
@@ -11,11 +12,18 @@ import com.quodex._miles.repository.AddressRepository;
 import com.quodex._miles.repository.OrderRepository;
 import com.quodex._miles.repository.UserRepository;
 import com.quodex._miles.service.OrderService;
+import com.razorpay.RazorpayClient;
+import com.razorpay.Payment;
 import lombok.RequiredArgsConstructor;
+import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
@@ -23,12 +31,25 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final AddressRepository addressRepository;
+    private final RazorpayClient razorpayClient; // Add this dependency
+
+    @Value("${razorpay.key.secret}")
+    private String razorpayKeySecret;
 
     @Override
     public OrderResponse placeOrder(OrderRequest request) {
         User user = userRepository.getByUserId(request.getUserId())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + request.getUserId()));
         Order order = convertToEntity(request, user);
+
+        // Initialize payment details with PENDING status for online payments
+        PaymentDetails paymentDetails = new PaymentDetails();
+        if (request.getPaymentMethod() == PaymentMethod.ONLINE) {
+            paymentDetails.setPaymentStatus(PaymentDetails.PaymentStatus.PENDING);
+        } else {
+            paymentDetails.setPaymentStatus(PaymentDetails.PaymentStatus.COMPLETED);
+        }
+        order.setPaymentDetails(paymentDetails);
 
         // Save shipping address first
         addressRepository.save(order.getShippingAddress());
@@ -66,10 +87,8 @@ public class OrderServiceImpl implements OrderService {
         // Update shipping address
         if (request.getShippingAddress() != null) {
             Address existingAddress = getAddress(request, existingOrder);
-
             addressRepository.save(existingAddress);
         }
-
 
         // Replace order items if provided
         if (request.getItems() != null && !request.getItems().isEmpty()) {
@@ -86,7 +105,6 @@ public class OrderServiceImpl implements OrderService {
                             .quantity(itemReq.getQuantity())
                             .price(itemReq.getPrice())
                             .total(itemReq.getTotal())
-
                             .order(existingOrder)
                             .build()
                     ).toList();
@@ -128,12 +146,128 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
-
     @Override
     public void deleteOrder(String orderId) {
         Order order = orderRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not Found"));
         orderRepository.delete(order);
+    }
+
+    @Override
+    public OrderResponse verifyPayment(PaymentVerificationRequest request) {
+        try {
+            // 1. Find the order in the database by its order ID
+            Order existingOrder = orderRepository.findByOrderId(request.getOrderId())
+                    .orElseThrow(() -> new RuntimeException("Order Not Found"));
+
+            // 2. Verify Razorpay signature to ensure the payment is valid and secure
+            if (!verifyRazorpaySignature(
+                    request.getRazorpayOrderId(),
+                    request.getRazorpayPaymentId(),
+                    request.getRazorpaySignature())) {
+                throw new RuntimeException("Payment Verification Failed");
+            }
+
+            // 3. Capture the payment
+            Payment payment = razorpayClient.payments.fetch(request.getRazorpayPaymentId());
+
+            // Check if payment needs to be captured (status should be "authorized")
+            if ("authorized".equals(payment.get("status"))) {
+                // Capture the full amount using RazorpayClient
+                JSONObject captureRequest = new JSONObject();
+                captureRequest.put("amount", Integer.valueOf(payment.get("amount").toString())); // Amount in paise
+                captureRequest.put("currency", payment.get("currency").toString());
+
+                // Use razorpayClient to capture the payment
+                Payment capturedPayment = razorpayClient.payments.capture(request.getRazorpayPaymentId(), captureRequest);
+
+                // Check if capture was successful
+                if (!"captured".equals(capturedPayment.get("status"))) {
+                    throw new RuntimeException("Payment capture failed");
+                }
+            }
+
+            // 4. Update the payment details in the order
+            PaymentDetails paymentDetails = existingOrder.getPaymentDetails();
+            if (paymentDetails == null) {
+                paymentDetails = new PaymentDetails();
+            }
+            paymentDetails.setRazorpayOrderId(request.getRazorpayOrderId());
+            paymentDetails.setRazorpayPaymentId(request.getRazorpayPaymentId());
+            paymentDetails.setRazorpaySignature(request.getRazorpaySignature());
+            paymentDetails.setPaymentStatus(PaymentDetails.PaymentStatus.COMPLETED); // Mark payment as completed
+
+            existingOrder.setPaymentDetails(paymentDetails);
+
+            // Also update order status to CONFIRMED if payment is successful
+            existingOrder.setStatus(OrderStatus.CONFIRMED);
+
+            // 5. Save updated order to the database
+            existingOrder = orderRepository.save(existingOrder);
+
+            // 6. Return the updated order response
+            return convertToResponse(existingOrder);
+
+        } catch (Exception e) {
+            // Log the error and mark payment as failed
+            e.printStackTrace();
+
+            // Update order with failed payment status
+            Order existingOrder = orderRepository.findByOrderId(request.getOrderId())
+                    .orElseThrow(() -> new RuntimeException("Order Not Found"));
+
+            PaymentDetails paymentDetails = existingOrder.getPaymentDetails();
+            if (paymentDetails == null) {
+                paymentDetails = new PaymentDetails();
+            }
+            paymentDetails.setPaymentStatus(PaymentDetails.PaymentStatus.FAILED);
+            existingOrder.setPaymentDetails(paymentDetails);
+            existingOrder.setStatus(OrderStatus.PAYMENT_FAILED);
+
+            orderRepository.save(existingOrder);
+
+            throw new RuntimeException("Payment verification and capture failed: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public List<OrderResponse> getOrderByUser(String userId) {
+        User user = userRepository.getByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User Not Found"));
+        return orderRepository.findByUser_UserId(userId)
+                .stream().map(this::convertToResponse).toList();
+
+    }
+
+    private boolean verifyRazorpaySignature(String razorpayOrderId, String razorpayPaymentId, String razorpaySignature) {
+        try {
+            // 1. Concatenate orderId and paymentId using a pipe (|)
+            String data = razorpayOrderId + "|" + razorpayPaymentId;
+
+            // 2. Create a Mac instance using HMAC SHA256
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+
+            // 3. Initialize the Mac with your Razorpay secret key
+            javax.crypto.spec.SecretKeySpec secretKeySpec = new javax.crypto.spec.SecretKeySpec(
+                    razorpayKeySecret.getBytes(), "HmacSHA256");
+            mac.init(secretKeySpec);
+
+            // 4. Generate the hash from the data
+            byte[] hash = mac.doFinal(data.getBytes());
+
+            // 5. Convert hash bytes to hexadecimal format
+            StringBuilder actualSignature = new StringBuilder();
+            for (byte b : hash) {
+                actualSignature.append(String.format("%02x", b));
+            }
+
+            // 6. Compare the actualSignature with Razorpay's signature (timing-safe)
+            return actualSignature.toString().equals(razorpaySignature);
+        } catch (Exception e) {
+            // Log the error if needed and return false
+            e.printStackTrace();
+            return false;
+        }
     }
 
     /**
@@ -157,8 +291,9 @@ public class OrderServiceImpl implements OrderService {
                 .user(user)
                 .shippingAddress(address)
                 .totalAmount(request.getTotalAmount())
+                .orderDate(LocalDateTime.now())
+                .paymentMethod(request.getPaymentMethod())
                 .status(request.getStatus() != null ? request.getStatus() : OrderStatus.PENDING)
-
                 .build();
 
         // Map order items and set back reference
@@ -172,7 +307,6 @@ public class OrderServiceImpl implements OrderService {
                 .price(itemReq.getPrice())
                 .order(order)
                 .total(itemReq.getTotal())
-
                 .build()).collect(Collectors.toList());
 
         order.setItems(orderItems);
@@ -215,9 +349,9 @@ public class OrderServiceImpl implements OrderService {
                 .totalAmount(order.getTotalAmount())
                 .status(order.getStatus())
                 .deliveryCharges(order.getDeliveryCharges())
-                .paymentMode(order.getPaymentMode())
+                .orderDate(order.getOrderDate())
+                .paymentDetails(order.getPaymentDetails())
+                .paymentMethod(order.getPaymentMethod())
                 .build();
     }
 }
-
-

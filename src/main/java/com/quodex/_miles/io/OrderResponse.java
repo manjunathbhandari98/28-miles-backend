@@ -2,7 +2,10 @@ package com.quodex._miles.io;
 
 import com.quodex._miles.constant.OrderStatus;
 
+import java.time.LocalDateTime;
 import java.util.List;
+
+import com.quodex._miles.constant.PaymentMethod;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,7 +22,9 @@ public class OrderResponse {
     private AddressResponse shippingAddress;
     private double totalAmount;
     private OrderStatus status; // e.g., PENDING, SHIPPED, DELIVERED, CANCELLED
-    private String paymentMode;
     private Double deliveryCharges;
+    private PaymentMethod paymentMethod;
+    private LocalDateTime orderDate;
+    private PaymentDetails paymentDetails;
 
 }
