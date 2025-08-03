@@ -164,6 +164,15 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
+    public void deleteCartByUser(String userId){
+        User user = userRepository.getByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User Not Found"));
+        Cart cart = cartRepository.findByUser_UserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cart Not Found"));
+        cartRepository.delete(cart);
+    }
+
+    @Override
     public void deleteCartItem(String cartItemId) {
         Cart cart = cartRepository.findAll().stream()
                 .filter(c -> c.getItems().stream()
@@ -189,8 +198,6 @@ public class CartServiceImpl implements CartService {
                 .map(this::convertToCartResponse)
                 .toList();
     }
-
-
 
     @Transactional
     @Override

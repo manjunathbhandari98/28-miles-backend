@@ -8,6 +8,6 @@ public enum OrderStatus {
     OUT_FOR_DELIVERY,
     DELIVERED,
     CANCELLED,
-    PAYMENT_FAILED,
+    RETURNED,
     REFUNDED
 }

@@ -37,7 +37,13 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResponse updateUser(String userId, UserRequest request) {
-       return null;
+        User user = userRepository.getByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+        user.setName(request.getName());
+        user.setEmail(request.getEmail());
+        user.setPhone(request.getPhone());
+        User updatedUser = userRepository.save(user);
+        return convertToResponse(updatedUser);
     }
 
     private User convertToEntity(UserRequest request) {
@@ -79,7 +85,7 @@ public class UserServiceImpl implements UserService {
                         .postalCode(address.getPostalCode())
                         .phone(address.getPhone())
                         .email(address.getEmail())
-                        .isDefault(address.isDefault())
+                        .defaultAddress(address.getDefaultAddress())
                         .userId(address.getUser().getUserId())
                         .build())
                 .collect(Collectors.toList());

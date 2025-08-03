@@ -24,6 +24,17 @@ public class AddressServiceImpl implements AddressService {
     public AddressResponse addAddress(String userId, AddressRequest request) {
         User user = userRepository.getByUserId(userId)
                 .orElseThrow(() -> new RuntimeException("User not found with ID: "+ userId));
+        if (request.getDefaultAddress()) {
+            // Step 1: Unset the old default if it exists
+            addressRepository.getByUserIdAndDefaultAddressTrue(user.getId())
+                    .ifPresent(existingDefault -> {
+                        existingDefault.setDefaultAddress(false);
+                        addressRepository.save(existingDefault);
+                    });
+            request.setDefaultAddress(true);
+        } else {
+            request.setDefaultAddress(false);
+        }
 
         Address address = convertToEntity(request,user);
         Address saved = addressRepository.save(address);
@@ -52,7 +63,19 @@ public class AddressServiceImpl implements AddressService {
         address.setState(request.getState());
         address.setPostalCode(request.getPostalCode());
         address.setCountry(request.getCountry());
-        address.setDefault(request.isDefault());
+        if (request.getDefaultAddress()) {
+            User user = userRepository.getByUserId(address.getUser().getUserId())
+                            .orElseThrow(() -> new ResourceNotFoundException("User Not Found"));
+            // Step 1: Unset the old default if it exists
+            addressRepository.getByUserIdAndDefaultAddressTrue(user.getId())
+                    .ifPresent(existingDefault -> {
+                        existingDefault.setDefaultAddress(false);
+                        addressRepository.save(existingDefault);
+                    });
+            address.setDefaultAddress(true);
+        } else {
+            address.setDefaultAddress(false);
+        }
 
         Address updated = addressRepository.save(address);
         return convertToDTO(updated);
@@ -77,7 +100,7 @@ public class AddressServiceImpl implements AddressService {
                 .state(saved.getState())
                 .postalCode(saved.getPostalCode())
                 .country(saved.getCountry())
-                .isDefault(saved.isDefault())
+                .defaultAddress(saved.getDefaultAddress())
                 .userId(saved.getUser() != null ? saved.getUser().getUserId() : null)
                 .build();
     }
@@ -93,7 +116,7 @@ public class AddressServiceImpl implements AddressService {
                 .state(request.getState())
                 .postalCode(request.getPostalCode())
                 .country(request.getCountry())
-                .isDefault(request.isDefault())
+                .defaultAddress(request.getDefaultAddress())
                 .user(user)
                 .build();
     }

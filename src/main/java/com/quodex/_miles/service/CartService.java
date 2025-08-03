@@ -17,4 +17,5 @@ public interface CartService {
     CartResponse mergeGuestCartWithUserCart(String guestCartId, String userId);
 
     void deleteCartItem(String cartItemId);
+    void deleteCartByUser(String userId);
 }

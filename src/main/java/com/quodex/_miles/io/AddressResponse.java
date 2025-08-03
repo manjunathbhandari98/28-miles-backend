@@ -19,6 +19,6 @@ public class AddressResponse {
     private String state;
     private String postalCode;
     private String country;
-    private boolean isDefault;
+    private Boolean defaultAddress;
     private String userId;
 }

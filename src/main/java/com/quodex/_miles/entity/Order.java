@@ -45,6 +45,7 @@ public class Order {
 
     private LocalDateTime orderDate;
 
+
     // Properly embed PaymentDetails
     @Embedded
     private PaymentDetails paymentDetails;
@@ -53,6 +54,10 @@ public class Order {
     private PaymentMethod paymentMethod;
 
     private Double deliveryCharges;
+
+    private LocalDateTime shippedAt;
+    private LocalDateTime deliveredAt;
+    private LocalDateTime estimatedDelivery;
 
     @PrePersist
     public void generateOrderId(){

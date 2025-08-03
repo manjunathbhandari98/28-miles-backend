@@ -1,5 +1,6 @@
 package com.quodex._miles.io;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,6 +11,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class AddressRequest {
+
     private String fullName;
     private String phone;
     private String email;
@@ -18,5 +20,7 @@ public class AddressRequest {
     private String state;
     private String postalCode;
     private String country;
-    private boolean isDefault;
+    private Boolean defaultAddress;
+
 }
+

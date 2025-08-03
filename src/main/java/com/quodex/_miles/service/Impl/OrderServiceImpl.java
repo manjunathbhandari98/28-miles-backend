@@ -11,6 +11,7 @@ import com.quodex._miles.io.*;
 import com.quodex._miles.repository.AddressRepository;
 import com.quodex._miles.repository.OrderRepository;
 import com.quodex._miles.repository.UserRepository;
+import com.quodex._miles.service.CartService;
 import com.quodex._miles.service.OrderService;
 import com.razorpay.RazorpayClient;
 import com.razorpay.Payment;
@@ -19,6 +20,8 @@ import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,6 +35,7 @@ public class OrderServiceImpl implements OrderService {
     private final UserRepository userRepository;
     private final AddressRepository addressRepository;
     private final RazorpayClient razorpayClient; // Add this dependency
+    private final CartService cartService;
 
     @Value("${razorpay.key.secret}")
     private String razorpayKeySecret;
@@ -44,16 +48,18 @@ public class OrderServiceImpl implements OrderService {
 
         // Initialize payment details with PENDING status for online payments
         PaymentDetails paymentDetails = new PaymentDetails();
-        if (request.getPaymentMethod() == PaymentMethod.ONLINE) {
-            paymentDetails.setPaymentStatus(PaymentDetails.PaymentStatus.PENDING);
-        } else {
+        if (request.getPaymentMethod() == PaymentMethod.CASH) {
             paymentDetails.setPaymentStatus(PaymentDetails.PaymentStatus.COMPLETED);
+            order.setDeliveryCharges(request.getDeliveryCharges());
+        } else {
+            paymentDetails.setPaymentStatus(PaymentDetails.PaymentStatus.PENDING);
         }
         order.setPaymentDetails(paymentDetails);
-
+        order.setEstimatedDelivery(LocalDateTime.now().plusDays(10));
         // Save shipping address first
         addressRepository.save(order.getShippingAddress());
         Order savedOrder = orderRepository.save(order);
+        cartService.deleteCartByUser(request.getUserId());
         return convertToResponse(savedOrder);
     }
 
@@ -150,7 +156,13 @@ public class OrderServiceImpl implements OrderService {
     public void deleteOrder(String orderId) {
         Order order = orderRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not Found"));
-        orderRepository.delete(order);
+        OrderStatus orderStatus = order.getStatus();
+        if (orderStatus == OrderStatus.PENDING || orderStatus == OrderStatus.PROCESSING || orderStatus == OrderStatus.CONFIRMED){
+            orderRepository.delete(order);
+        } else {
+           throw new RuntimeException("Order Deletion Not Allowed");
+        }
+
     }
 
     @Override
@@ -222,7 +234,7 @@ public class OrderServiceImpl implements OrderService {
             }
             paymentDetails.setPaymentStatus(PaymentDetails.PaymentStatus.FAILED);
             existingOrder.setPaymentDetails(paymentDetails);
-            existingOrder.setStatus(OrderStatus.PAYMENT_FAILED);
+            existingOrder.setStatus(OrderStatus.CANCELLED);
 
             orderRepository.save(existingOrder);
 
@@ -239,16 +251,61 @@ public class OrderServiceImpl implements OrderService {
 
     }
 
+    @Override
+    public OrderResponse updateStatus(String orderId, OrderStatus status) {
+        Order order = orderRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
+
+        order.setStatus(status);
+        if (status == OrderStatus.SHIPPED){
+        order.setShippedAt(LocalDateTime.now());
+        } else if (status == OrderStatus.DELIVERED){
+            order.setDeliveredAt(LocalDateTime.now());
+        }
+
+        Order updatedOrder = orderRepository.save(order);
+
+        return convertToResponse(updatedOrder); // assuming you have a method to convert Orders to OrderResponse
+    }
+
+    @Override
+    public TrackOrderResponse trackOrder(String orderId) {
+        Order order = orderRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
+        String step = switch (order.getStatus()) {
+            case PENDING -> "Pending";
+            case CONFIRMED -> "Confirmed";
+            case PROCESSING -> "Processing your order";
+            case SHIPPED -> "Shipped";
+            case OUT_FOR_DELIVERY -> "Out for delivery";
+            case DELIVERED -> "Delivered";
+            case CANCELLED -> "Cancelled";
+            case RETURNED -> "Returned";
+            case REFUNDED -> "Refunded";
+        };
+
+        return TrackOrderResponse.builder()
+                .orderId(order.getOrderId())
+                .status(order.getStatus())
+                .placedAt(order.getOrderDate())
+                .shippedAt(order.getShippedAt())
+                .deliveredAt(order.getDeliveredAt())
+                .estimatedDelivery(order.getEstimatedDelivery())
+                .currentStep(step)
+                .build();
+    }
+
     private boolean verifyRazorpaySignature(String razorpayOrderId, String razorpayPaymentId, String razorpaySignature) {
         try {
             // 1. Concatenate orderId and paymentId using a pipe (|)
             String data = razorpayOrderId + "|" + razorpayPaymentId;
 
             // 2. Create a Mac instance using HMAC SHA256
-            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            Mac mac = Mac.getInstance("HmacSHA256");
 
             // 3. Initialize the Mac with your Razorpay secret key
-            javax.crypto.spec.SecretKeySpec secretKeySpec = new javax.crypto.spec.SecretKeySpec(
+            SecretKeySpec secretKeySpec = new SecretKeySpec(
                     razorpayKeySecret.getBytes(), "HmacSHA256");
             mac.init(secretKeySpec);
 

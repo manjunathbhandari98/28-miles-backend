@@ -1,7 +1,9 @@
 package com.quodex._miles.controller;
 
+import com.quodex._miles.constant.OrderStatus;
 import com.quodex._miles.io.OrderRequest;
 import com.quodex._miles.io.OrderResponse;
+import com.quodex._miles.io.TrackOrderResponse;
 import com.quodex._miles.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -36,6 +38,18 @@ public class OrderController {
     @GetMapping("/{orderId}")
     public ResponseEntity<OrderResponse> getOrderById(@PathVariable String orderId){
         OrderResponse response = orderService.getOrderByOrderId(orderId);
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/update/status/{orderId}")
+    public ResponseEntity<OrderResponse> updateStatus(@PathVariable String orderId, @RequestBody OrderStatus status){
+        OrderResponse response = orderService.updateStatus(orderId, status);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/track/{orderId}")
+    public ResponseEntity<TrackOrderResponse> trackOrder(@PathVariable String orderId) {
+        TrackOrderResponse response = orderService.trackOrder(orderId);
         return ResponseEntity.ok(response);
     }
 
