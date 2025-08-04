@@ -34,7 +34,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final AddressRepository addressRepository;
-    private final RazorpayClient razorpayClient; // Add this dependency
+    private final RazorpayClient razorpayClient;
     private final CartService cartService;
 
     @Value("${razorpay.key.secret}")
@@ -46,16 +46,23 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with ID: " + request.getUserId()));
         Order order = convertToEntity(request, user);
 
-        // Initialize payment details with PENDING status for online payments
+        // Initialize payment details based on payment method
         PaymentDetails paymentDetails = new PaymentDetails();
+
         if (request.getPaymentMethod() == PaymentMethod.CASH) {
-            paymentDetails.setPaymentStatus(PaymentDetails.PaymentStatus.COMPLETED);
+            // Cash on delivery - payment is pending until delivery
+            paymentDetails.setPaymentStatus(PaymentDetails.PaymentStatus.PENDING);
+            order.setStatus(OrderStatus.CONFIRMED); // Order is confirmed but payment pending
             order.setDeliveryCharges(request.getDeliveryCharges());
         } else {
+            // Online payment - payment and order both pending until verification
             paymentDetails.setPaymentStatus(PaymentDetails.PaymentStatus.PENDING);
+            order.setStatus(OrderStatus.PENDING); // Order pending until payment verification
         }
+
         order.setPaymentDetails(paymentDetails);
         order.setEstimatedDelivery(LocalDateTime.now().plusDays(10));
+
         // Save shipping address first
         addressRepository.save(order.getShippingAddress());
         Order savedOrder = orderRepository.save(order);
@@ -78,16 +85,15 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public OrderResponse updateOrder(String orderId, OrderRequest request) {
-        // Fetch existing order
         Order existingOrder = orderRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
 
-        // Update status if provided
+        // Validate status transition before updating
         if (request.getStatus() != null) {
+            validateStatusTransition(existingOrder.getStatus(), request.getStatus(), existingOrder.getPaymentDetails());
             existingOrder.setStatus(request.getStatus());
         }
 
-        // Always update totalAmount since it's a primitive
         existingOrder.setTotalAmount(request.getTotalAmount());
 
         // Update shipping address
@@ -98,7 +104,6 @@ public class OrderServiceImpl implements OrderService {
 
         // Replace order items if provided
         if (request.getItems() != null && !request.getItems().isEmpty()) {
-            // Clear old items (only if orphanRemoval = true in @OneToMany)
             existingOrder.getItems().clear();
 
             List<OrderItem> updatedItems = request.getItems().stream()
@@ -118,61 +123,43 @@ public class OrderServiceImpl implements OrderService {
             existingOrder.getItems().addAll(updatedItems);
         }
 
-        // Save updated order
         Order savedOrder = orderRepository.save(existingOrder);
-
         return convertToResponse(savedOrder);
-    }
-
-    private static Address getAddress(OrderRequest request, Order existingOrder) {
-        Address existingAddress = existingOrder.getShippingAddress();
-        AddressRequest newAddressData = request.getShippingAddress();
-
-        existingAddress.setFullName(newAddressData.getFullName());
-        existingAddress.setPhone(newAddressData.getPhone());
-        existingAddress.setEmail(newAddressData.getEmail());
-        existingAddress.setStreet(newAddressData.getStreet());
-        existingAddress.setCity(newAddressData.getCity());
-        existingAddress.setState(newAddressData.getState());
-        existingAddress.setPostalCode(newAddressData.getPostalCode());
-        existingAddress.setCountry(newAddressData.getCountry());
-        return existingAddress;
-    }
-
-    private Address convertToAddressEntity(AddressRequest addressRequest) {
-        return Address.builder()
-                .fullName(addressRequest.getFullName())
-                .phone(addressRequest.getPhone())
-                .email(addressRequest.getEmail())
-                .street(addressRequest.getStreet())
-                .city(addressRequest.getCity())
-                .state(addressRequest.getState())
-                .postalCode(addressRequest.getPostalCode())
-                .country(addressRequest.getCountry())
-                .build();
     }
 
     @Override
     public void deleteOrder(String orderId) {
         Order order = orderRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not Found"));
+
         OrderStatus orderStatus = order.getStatus();
-        if (orderStatus == OrderStatus.PENDING || orderStatus == OrderStatus.PROCESSING || orderStatus == OrderStatus.CONFIRMED){
+        PaymentDetails.PaymentStatus paymentStatus = order.getPaymentDetails() != null ?
+                order.getPaymentDetails().getPaymentStatus() : PaymentDetails.PaymentStatus.PENDING;
+
+        // Allow deletion only for specific order statuses and if payment hasn't been completed
+        if ((orderStatus == OrderStatus.PENDING || orderStatus == OrderStatus.CONFIRMED) &&
+                paymentStatus != PaymentDetails.PaymentStatus.COMPLETED) {
+            orderRepository.delete(order);
+        } else if (orderStatus == OrderStatus.PROCESSING && paymentStatus == PaymentDetails.PaymentStatus.PENDING) {
+            // Allow deletion of processing orders only if payment is still pending
             orderRepository.delete(order);
         } else {
-           throw new RuntimeException("Order Deletion Not Allowed");
+            throw new RuntimeException("Order cannot be deleted - either payment is completed or order is in non-deletable status");
         }
-
     }
 
     @Override
     public OrderResponse verifyPayment(PaymentVerificationRequest request) {
         try {
-            // 1. Find the order in the database by its order ID
             Order existingOrder = orderRepository.findByOrderId(request.getOrderId())
                     .orElseThrow(() -> new RuntimeException("Order Not Found"));
 
-            // 2. Verify Razorpay signature to ensure the payment is valid and secure
+            // Check if order is in correct state for payment verification
+            if (existingOrder.getStatus() != OrderStatus.PENDING) {
+                throw new RuntimeException("Order is not in pending state for payment verification");
+            }
+
+            // Verify Razorpay signature
             if (!verifyRazorpaySignature(
                     request.getRazorpayOrderId(),
                     request.getRazorpayPaymentId(),
@@ -180,26 +167,22 @@ public class OrderServiceImpl implements OrderService {
                 throw new RuntimeException("Payment Verification Failed");
             }
 
-            // 3. Capture the payment
+            // Capture the payment
             Payment payment = razorpayClient.payments.fetch(request.getRazorpayPaymentId());
 
-            // Check if payment needs to be captured (status should be "authorized")
             if ("authorized".equals(payment.get("status"))) {
-                // Capture the full amount using RazorpayClient
                 JSONObject captureRequest = new JSONObject();
-                captureRequest.put("amount", Integer.valueOf(payment.get("amount").toString())); // Amount in paise
+                captureRequest.put("amount", Integer.valueOf(payment.get("amount").toString()));
                 captureRequest.put("currency", payment.get("currency").toString());
 
-                // Use razorpayClient to capture the payment
                 Payment capturedPayment = razorpayClient.payments.capture(request.getRazorpayPaymentId(), captureRequest);
 
-                // Check if capture was successful
                 if (!"captured".equals(capturedPayment.get("status"))) {
                     throw new RuntimeException("Payment capture failed");
                 }
             }
 
-            // 4. Update the payment details in the order
+            // Update payment details
             PaymentDetails paymentDetails = existingOrder.getPaymentDetails();
             if (paymentDetails == null) {
                 paymentDetails = new PaymentDetails();
@@ -207,24 +190,20 @@ public class OrderServiceImpl implements OrderService {
             paymentDetails.setRazorpayOrderId(request.getRazorpayOrderId());
             paymentDetails.setRazorpayPaymentId(request.getRazorpayPaymentId());
             paymentDetails.setRazorpaySignature(request.getRazorpaySignature());
-            paymentDetails.setPaymentStatus(PaymentDetails.PaymentStatus.COMPLETED); // Mark payment as completed
+            paymentDetails.setPaymentStatus(PaymentDetails.PaymentStatus.COMPLETED);
 
             existingOrder.setPaymentDetails(paymentDetails);
 
-            // Also update order status to CONFIRMED if payment is successful
+            // Update order status to CONFIRMED only after successful payment
             existingOrder.setStatus(OrderStatus.CONFIRMED);
 
-            // 5. Save updated order to the database
             existingOrder = orderRepository.save(existingOrder);
-
-            // 6. Return the updated order response
             return convertToResponse(existingOrder);
 
         } catch (Exception e) {
-            // Log the error and mark payment as failed
             e.printStackTrace();
 
-            // Update order with failed payment status
+            // Handle payment failure
             Order existingOrder = orderRepository.findByOrderId(request.getOrderId())
                     .orElseThrow(() -> new RuntimeException("Order Not Found"));
 
@@ -234,10 +213,11 @@ public class OrderServiceImpl implements OrderService {
             }
             paymentDetails.setPaymentStatus(PaymentDetails.PaymentStatus.FAILED);
             existingOrder.setPaymentDetails(paymentDetails);
-            existingOrder.setStatus(OrderStatus.CANCELLED);
+
+            // Order remains PENDING, don't automatically cancel
+            // Let admin or system decide what to do with failed payment orders
 
             orderRepository.save(existingOrder);
-
             throw new RuntimeException("Payment verification and capture failed: " + e.getMessage());
         }
     }
@@ -248,24 +228,40 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("User Not Found"));
         return orderRepository.findByUser_UserId(userId)
                 .stream().map(this::convertToResponse).toList();
-
     }
 
     @Override
-    public OrderResponse updateStatus(String orderId, OrderStatus status) {
+    public OrderResponse updateStatus(String orderId, OrderStatus newStatus) {
         Order order = orderRepository.findByOrderId(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
 
-        order.setStatus(status);
-        if (status == OrderStatus.SHIPPED){
-        order.setShippedAt(LocalDateTime.now());
-        } else if (status == OrderStatus.DELIVERED){
-            order.setDeliveredAt(LocalDateTime.now());
+        // Validate status transition
+        validateStatusTransition(order.getStatus(), newStatus, order.getPaymentDetails());
+
+        order.setStatus(newStatus);
+
+        // Handle specific status updates
+        switch (newStatus) {
+            case SHIPPED -> order.setShippedAt(LocalDateTime.now());
+            case DELIVERED -> {
+                order.setDeliveredAt(LocalDateTime.now());
+                // For COD orders, mark payment as completed when delivered
+                if (order.getPaymentMethod() == PaymentMethod.CASH &&
+                        order.getPaymentDetails().getPaymentStatus() == PaymentDetails.PaymentStatus.PENDING) {
+                    order.getPaymentDetails().setPaymentStatus(PaymentDetails.PaymentStatus.COMPLETED);
+                }
+            }
+            case CANCELLED -> {
+                // If payment was completed, it might need refund processing
+                if (order.getPaymentDetails().getPaymentStatus() == PaymentDetails.PaymentStatus.COMPLETED) {
+                    // Don't automatically change payment status to FAILED
+                    // This should be handled by refund process
+                }
+            }
         }
 
         Order updatedOrder = orderRepository.save(order);
-
-        return convertToResponse(updatedOrder); // assuming you have a method to convert Orders to OrderResponse
+        return convertToResponse(updatedOrder);
     }
 
     @Override
@@ -274,8 +270,8 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
 
         String step = switch (order.getStatus()) {
-            case PENDING -> "Pending";
-            case CONFIRMED -> "Confirmed";
+            case PENDING -> "Pending Payment Verification";
+            case CONFIRMED -> "Confirmed - Processing Soon";
             case PROCESSING -> "Processing your order";
             case SHIPPED -> "Shipped";
             case OUT_FOR_DELIVERY -> "Out for delivery";
@@ -296,42 +292,96 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
+    /**
+     * Validates if the status transition is allowed based on current order status and payment status
+     */
+    private void validateStatusTransition(OrderStatus currentStatus, OrderStatus newStatus, PaymentDetails paymentDetails) {
+        PaymentDetails.PaymentStatus paymentStatus = paymentDetails != null ?
+                paymentDetails.getPaymentStatus() : PaymentDetails.PaymentStatus.PENDING;
+
+        switch (currentStatus) {
+            case PENDING -> {
+                // From PENDING, can only go to CONFIRMED (after payment) or CANCELLED
+                if (newStatus != OrderStatus.CONFIRMED && newStatus != OrderStatus.CANCELLED) {
+                    throw new IllegalStateException("Invalid status transition from PENDING to " + newStatus);
+                }
+            }
+            case CONFIRMED -> {
+                // From CONFIRMED, can go to PROCESSING or CANCELLED
+                if (newStatus != OrderStatus.PROCESSING && newStatus != OrderStatus.CANCELLED) {
+                    throw new IllegalStateException("Invalid status transition from CONFIRMED to " + newStatus);
+                }
+            }
+            case PROCESSING -> {
+                // From PROCESSING, can go to SHIPPED or CANCELLED
+                if (newStatus != OrderStatus.SHIPPED && newStatus != OrderStatus.CANCELLED) {
+                    throw new IllegalStateException("Invalid status transition from PROCESSING to " + newStatus);
+                }
+            }
+            case SHIPPED -> {
+                // From SHIPPED, can go to OUT_FOR_DELIVERY or DELIVERED
+                if (newStatus != OrderStatus.OUT_FOR_DELIVERY && newStatus != OrderStatus.DELIVERED) {
+                    throw new IllegalStateException("Invalid status transition from SHIPPED to " + newStatus);
+                }
+            }
+            case OUT_FOR_DELIVERY -> {
+                // From OUT_FOR_DELIVERY, can only go to DELIVERED
+                if (newStatus != OrderStatus.DELIVERED) {
+                    throw new IllegalStateException("Invalid status transition from OUT_FOR_DELIVERY to " + newStatus);
+                }
+            }
+            case DELIVERED -> {
+                // From DELIVERED, can go to RETURNED (via return process)
+                if (newStatus != OrderStatus.RETURNED) {
+                    throw new IllegalStateException("Invalid status transition from DELIVERED to " + newStatus);
+                }
+            }
+            case CANCELLED, RETURNED, REFUNDED -> {
+                // These are terminal states
+                throw new IllegalStateException("Cannot change status from terminal state " + currentStatus);
+            }
+        }
+    }
+
     private boolean verifyRazorpaySignature(String razorpayOrderId, String razorpayPaymentId, String razorpaySignature) {
         try {
-            // 1. Concatenate orderId and paymentId using a pipe (|)
             String data = razorpayOrderId + "|" + razorpayPaymentId;
-
-            // 2. Create a Mac instance using HMAC SHA256
             Mac mac = Mac.getInstance("HmacSHA256");
-
-            // 3. Initialize the Mac with your Razorpay secret key
-            SecretKeySpec secretKeySpec = new SecretKeySpec(
-                    razorpayKeySecret.getBytes(), "HmacSHA256");
+            SecretKeySpec secretKeySpec = new SecretKeySpec(razorpayKeySecret.getBytes(), "HmacSHA256");
             mac.init(secretKeySpec);
-
-            // 4. Generate the hash from the data
             byte[] hash = mac.doFinal(data.getBytes());
 
-            // 5. Convert hash bytes to hexadecimal format
             StringBuilder actualSignature = new StringBuilder();
             for (byte b : hash) {
                 actualSignature.append(String.format("%02x", b));
             }
 
-            // 6. Compare the actualSignature with Razorpay's signature (timing-safe)
             return actualSignature.toString().equals(razorpaySignature);
         } catch (Exception e) {
-            // Log the error if needed and return false
             e.printStackTrace();
             return false;
         }
+    }
+
+    private static Address getAddress(OrderRequest request, Order existingOrder) {
+        Address existingAddress = existingOrder.getShippingAddress();
+        AddressRequest newAddressData = request.getShippingAddress();
+
+        existingAddress.setFullName(newAddressData.getFullName());
+        existingAddress.setPhone(newAddressData.getPhone());
+        existingAddress.setEmail(newAddressData.getEmail());
+        existingAddress.setStreet(newAddressData.getStreet());
+        existingAddress.setCity(newAddressData.getCity());
+        existingAddress.setState(newAddressData.getState());
+        existingAddress.setPostalCode(newAddressData.getPostalCode());
+        existingAddress.setCountry(newAddressData.getCountry());
+        return existingAddress;
     }
 
     /**
      * Converts OrderRequest and User into Order entity.
      */
     private Order convertToEntity(OrderRequest request, User user) {
-        // Convert address
         Address address = Address.builder()
                 .fullName(request.getShippingAddress().getFullName())
                 .phone(request.getShippingAddress().getPhone())
@@ -343,17 +393,15 @@ public class OrderServiceImpl implements OrderService {
                 .country(request.getShippingAddress().getCountry())
                 .build();
 
-        // Create order
         Order order = Order.builder()
                 .user(user)
                 .shippingAddress(address)
                 .totalAmount(request.getTotalAmount())
                 .orderDate(LocalDateTime.now())
                 .paymentMethod(request.getPaymentMethod())
-                .status(request.getStatus() != null ? request.getStatus() : OrderStatus.PENDING)
+                .status(OrderStatus.PENDING) // Always start with PENDING
                 .build();
 
-        // Map order items and set back reference
         List<OrderItem> orderItems = request.getItems().stream().map(itemReq -> OrderItem.builder()
                 .productId(itemReq.getProductId())
                 .productName(itemReq.getProductName())
@@ -367,7 +415,6 @@ public class OrderServiceImpl implements OrderService {
                 .build()).collect(Collectors.toList());
 
         order.setItems(orderItems);
-
         return order;
     }
 
@@ -409,6 +456,9 @@ public class OrderServiceImpl implements OrderService {
                 .orderDate(order.getOrderDate())
                 .paymentDetails(order.getPaymentDetails())
                 .paymentMethod(order.getPaymentMethod())
+                .deliveredAt(order.getDeliveredAt())
+                .shippedAt(order.getShippedAt())
+                .estimatedDelivery(order.getEstimatedDelivery())
                 .build();
     }
 }

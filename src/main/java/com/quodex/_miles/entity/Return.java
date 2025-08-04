@@ -25,10 +25,6 @@ public class Return {
     private Order order;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_item_id")
-    private OrderItem orderItem;
-
-    @ManyToOne(fetch = FetchType.LAZY)
     private User user;
 
     private String reason;

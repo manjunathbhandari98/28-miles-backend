@@ -22,6 +22,7 @@ public class ProductRequest {
     private List<String> tags;
     private List<String> images;
     private String description;
+    private String summary;
     private String categoryId; // You send this and fetch Category entity from DB
     private Integer stock;
     private Boolean isTrending;

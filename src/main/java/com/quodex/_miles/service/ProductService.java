@@ -28,4 +28,6 @@ public interface ProductService {
     ProductResponse getProductBySlug(String slug);
 
     Page<ProductResponse> getNewArrivals(int page, int size);
+
+    Page<ProductResponse> getSimilarProducts(String categoryId, int page, int size);
 }

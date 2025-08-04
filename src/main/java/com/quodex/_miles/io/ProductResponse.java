@@ -25,6 +25,7 @@ public class ProductResponse {
     private List<String> tags;
     private List<String> images;
     private String description;
+    private String summary;
     private String categoryId;
     private String categoryName;
     private Integer stock;

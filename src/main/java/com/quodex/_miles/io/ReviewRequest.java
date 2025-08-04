@@ -9,7 +9,6 @@ import lombok.NoArgsConstructor;@Data
 @Builder
 public class ReviewRequest {
     private String userId;
-    private String productId;
     private  double rating;
     private String comment;
 }

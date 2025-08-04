@@ -14,7 +14,6 @@ import java.time.LocalDateTime;
 @Builder
 public class ReturnRequest {
     private String orderId;
-    private String orderItemId;
     private String userId;
     private String reason;
     private ReturnStatus status;

@@ -120,6 +120,7 @@ public class WishListServiceImpl implements WishListService {
                         .name(product.getName())
                         .slug(product.getSlug())
                         .description(product.getDescription())
+                        .summary(product.getSummary())
                         .price(product.getPrice())
                         .oldPrice(product.getOldPrice())
                         .rating(product.getRating())

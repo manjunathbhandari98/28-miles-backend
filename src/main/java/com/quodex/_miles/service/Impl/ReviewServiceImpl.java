@@ -9,11 +9,20 @@ import com.quodex._miles.io.ReviewResponse;
 import com.quodex._miles.repository.ProductRepository;
 import com.quodex._miles.repository.ReviewRepository;
 import com.quodex._miles.repository.UserRepository;
+import com.quodex._miles.service.FileUploadService;
 import com.quodex._miles.service.ReviewService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -22,49 +31,42 @@ public class ReviewServiceImpl implements ReviewService {
     private final ReviewRepository reviewRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final FileUploadService fileUploadService;
 
     @Override
-    public ReviewResponse addReview(ReviewRequest request) {
-        Product product = productRepository.findByProductId(request.getProductId())
-                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+    public ReviewResponse addReview(String productId, ReviewRequest request, List<MultipartFile> files
+) {
+        Product product = productRepository.findByProductId(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with ID: " + productId));
         User user = userRepository.getByUserId(request.getUserId())
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User Not Found"));
 
-        // Check if the user already reviewed the product
-        Reviews existingReview = reviewRepository.findByUserAndProduct(user, product).orElse(null);
+        Reviews review =  Reviews.builder()
+                .user(user)
+                .rating(request.getRating())
+                .comment(request.getComment())
+                .product(product)
+                .build();
 
-        if (existingReview != null) {
-            // Update the existing review
-            existingReview.setComment(request.getComment());
-            existingReview.setRating(request.getRating());
-            reviewRepository.save(existingReview);
-        } else {
-            // Create new review
-            Reviews review = Reviews.builder()
-                    .user(user)
-                    .product(product)
-                    .rating(request.getRating())
-                    .comment(request.getComment())
-                    .build();
-            reviewRepository.save(review);
+        // Handle file upload to Cloudinary if present
+        if (files != null && !files.isEmpty()) {
+            List<String> imgUrls = files.stream()
+                    .map(fileUploadService::uploadFile)
+                    .collect(Collectors.toList());
+
+            review.setImages(imgUrls);
         }
 
-        // Recalculate product's overall rating
+
+        Reviews savedReview = reviewRepository.save(review);
+
+        // Update product rating after saving review
         updateProductRating(product);
 
-        // Return updated/created review
-        Reviews saved = reviewRepository.findByUserAndProduct(user, product)
-                .orElseThrow(() -> new ResourceNotFoundException("Unexpected error retrieving review"));
-
-        return ReviewResponse.builder()
-                .reviewId(saved.getReviewId())
-                .productId(product.getProductId())
-                .userId(user.getUserId())
-                .rating(saved.getRating())
-                .comment(saved.getComment())
-                .username(user.getName())
-                .build();
+        return convertToResponse(savedReview);
     }
+
+
 
     @Override
     public void deleteReview(String reviewId){
@@ -80,6 +82,14 @@ public class ReviewServiceImpl implements ReviewService {
         return convertToResponse(reviews);
     }
 
+    @Override
+    public Page<ReviewResponse> getReviewByProduct(String productId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<Reviews> reviewPage = reviewRepository.findByProduct_ProductId(productId, pageable);
+        return reviewPage.map(this::convertToResponse);
+    }
+
+
     private ReviewResponse convertToResponse(Reviews reviews) {
         return ReviewResponse.builder()
                 .reviewId(reviews.getReviewId())
@@ -89,8 +99,10 @@ public class ReviewServiceImpl implements ReviewService {
                 .comment(reviews.getComment())
                 .productId(reviews.getProduct().getProductId())
                 .createdAt(reviews.getCreatedAt())
+                .images(reviews.getImages())
                 .build();
     }
+
 
 
     private void updateProductRating(Product product) {
@@ -99,8 +111,9 @@ public class ReviewServiceImpl implements ReviewService {
                 .mapToDouble(Reviews::getRating)
                 .average()
                 .orElse(0.0);
-        double roundedRating = Math.round(averageRating * 10.0)/10.0;
-        product.setRating(roundedRating);
+        BigDecimal rounded = new BigDecimal(averageRating).setScale(1, RoundingMode.HALF_UP);
+        product.setRating(rounded.doubleValue());
+
         productRepository.save(product); // Save updated rating
     }
 

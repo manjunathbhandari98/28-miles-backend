@@ -26,5 +26,8 @@ public class OrderResponse {
     private PaymentMethod paymentMethod;
     private LocalDateTime orderDate;
     private PaymentDetails paymentDetails;
+    private LocalDateTime shippedAt;
+    private LocalDateTime deliveredAt;
+    private LocalDateTime estimatedDelivery;
 
 }

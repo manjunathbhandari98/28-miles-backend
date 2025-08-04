@@ -39,9 +39,8 @@ public class ProductServiceImpl implements ProductService {
     private final FileUploadServiceImpl fileUploadService;
 
     @Override
-    public ProductResponse addProduct(
-            @RequestPart("product") ProductRequest request,
-            @RequestPart("files") List<MultipartFile> files
+    public ProductResponse addProduct(ProductRequest request,
+             List<MultipartFile> files
     )
     {
         String slug = (request.getSlug() == null || request.getSlug().isEmpty())
@@ -78,6 +77,7 @@ public class ProductServiceImpl implements ProductService {
                 .tags(request.getTags())
                 .images(request.getImages())
                 .description(request.getDescription())
+                .summary(request.getSummary())
                 .price(request.getPrice())
                 .oldPrice(request.getOldPrice())
                 .tax(taxApplicable)
@@ -130,6 +130,18 @@ public class ProductServiceImpl implements ProductService {
             productPage = productRepository.findAll(pageable);
         }
 
+        return productPage.map(this::convertToResponse);
+    }
+
+    @Override
+    public Page<ProductResponse> getSimilarProducts(String categoryId, int page, int size){
+        Pageable pageable = PageRequest.of(page,size);
+        Page<Product> productPage;
+        if(categoryId != null){
+            productPage = productRepository.findByCategory_CategoryId(categoryId,pageable);
+        } else {
+            productPage = productRepository.findAll(pageable);
+        }
         return productPage.map(this::convertToResponse);
     }
 
@@ -187,6 +199,7 @@ public class ProductServiceImpl implements ProductService {
         product.setName(request.getName());
         product.setSlug(slug);
         product.setDescription(request.getDescription());
+        product.setSummary(request.getSummary());
         product.setPrice(request.getPrice());
         product.setOldPrice(request.getOldPrice());
         product.setTax(taxApplicable);
@@ -220,6 +233,7 @@ public class ProductServiceImpl implements ProductService {
                 .name(product.getName())
                 .slug(product.getSlug())
                 .description(product.getDescription())
+                .summary(product.getSummary())
                 .price(product.getPrice())
                 .oldPrice(product.getOldPrice())
                 .tax(product.getTax())
@@ -250,6 +264,7 @@ public class ProductServiceImpl implements ProductService {
                         .userId(review.getUser().getUserId())
                         .username(review.getUser().getName())
                         .productId(review.getProduct().getProductId())
+                        .images(review.getImages())
                         .createdAt(review.getCreatedAt())
                         .build())
                 .toList();

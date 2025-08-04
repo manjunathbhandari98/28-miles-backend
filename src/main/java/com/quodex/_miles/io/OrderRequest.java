@@ -19,7 +19,7 @@ public class OrderRequest {
     private List<OrderItemRequest> items;
     private AddressRequest shippingAddress;
     private double totalAmount;
-    private OrderStatus status; // e.g., PENDING, SHIPPED, DELIVERED, CANCELLED
+    private OrderStatus status;
     private PaymentMethod paymentMethod;
     private Double deliveryCharges;
 

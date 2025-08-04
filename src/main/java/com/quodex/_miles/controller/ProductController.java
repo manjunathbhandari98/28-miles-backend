@@ -53,6 +53,15 @@ public class ProductController {
     ) {
         return ResponseEntity.ok(productService.getProductsByFilters(gender, categorySlug, page, size));
     }
+    @GetMapping("/category/{categoryId}")
+    public ResponseEntity<Page<ProductResponse>> getSimilarProducts(
+            @PathVariable String categoryId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return ResponseEntity.ok(productService.getSimilarProducts(categoryId, page, size));
+    }
+
 
 
     @GetMapping("/{productId}")

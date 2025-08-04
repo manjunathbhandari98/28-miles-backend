@@ -32,4 +32,5 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query("SELECT p FROM Product p WHERE p.createdAt >= :startDate")
     Page<Product> findNewArrivals(@Param("startDate") LocalDateTime startDate, Pageable pageable);
 
+    Page<Product> findByCategory_CategoryId(String categoryId,Pageable pageable);
 }

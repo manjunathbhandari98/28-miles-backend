@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
 public class ReturnResponse {
     private String returnId;
     private String orderId;
-    private String orderItemId;
     private String userId;
     private String reason;
     private ReturnStatus status;

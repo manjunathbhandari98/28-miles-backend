@@ -3,6 +3,7 @@ package com.quodex._miles.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -33,6 +34,8 @@ public class Reviews {
     private String comment;
 
     private LocalDateTime createdAt;
+
+    private List<String> images;
 
     @PrePersist
     public void prePersist() {

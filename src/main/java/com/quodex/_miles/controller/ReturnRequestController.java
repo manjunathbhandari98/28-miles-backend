@@ -1,5 +1,6 @@
 package com.quodex._miles.controller;
 
+import com.quodex._miles.constant.ReturnStatus;
 import com.quodex._miles.io.ReturnProcessRequest;
 import com.quodex._miles.io.ReturnRequest;
 import com.quodex._miles.io.ReturnResponse;
@@ -31,6 +32,12 @@ public class ReturnRequestController {
     @GetMapping("/{requestId}")
     public ResponseEntity<ReturnResponse> getReturnItemById(@PathVariable String requestId){
         ReturnResponse response = returnService.getReturnByReturnId(requestId);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/status/{orderId}")
+    public ResponseEntity<ReturnResponse> getReturnByOrder(@PathVariable String orderId) throws IllegalAccessException {
+        ReturnResponse response = returnService.getReturnByOrder(orderId);
         return ResponseEntity.ok(response);
     }
 
