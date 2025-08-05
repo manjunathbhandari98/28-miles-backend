@@ -136,12 +136,7 @@ public class OrderServiceImpl implements OrderService {
         PaymentDetails.PaymentStatus paymentStatus = order.getPaymentDetails() != null ?
                 order.getPaymentDetails().getPaymentStatus() : PaymentDetails.PaymentStatus.PENDING;
 
-        // Allow deletion only for specific order statuses and if payment hasn't been completed
-        if ((orderStatus == OrderStatus.PENDING || orderStatus == OrderStatus.CONFIRMED) &&
-                paymentStatus != PaymentDetails.PaymentStatus.COMPLETED) {
-            orderRepository.delete(order);
-        } else if (orderStatus == OrderStatus.PROCESSING && paymentStatus == PaymentDetails.PaymentStatus.PENDING) {
-            // Allow deletion of processing orders only if payment is still pending
+        if (orderStatus == OrderStatus.PENDING || orderStatus == OrderStatus.CONFIRMED || orderStatus == OrderStatus.PROCESSING) {
             orderRepository.delete(order);
         } else {
             throw new RuntimeException("Order cannot be deleted - either payment is completed or order is in non-deletable status");

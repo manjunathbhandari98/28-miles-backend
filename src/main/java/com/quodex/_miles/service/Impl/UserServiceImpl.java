@@ -85,7 +85,6 @@ public class UserServiceImpl implements UserService {
                         .postalCode(address.getPostalCode())
                         .phone(address.getPhone())
                         .email(address.getEmail())
-                        .defaultAddress(address.getDefaultAddress())
                         .userId(address.getUser().getUserId())
                         .build())
                 .collect(Collectors.toList());

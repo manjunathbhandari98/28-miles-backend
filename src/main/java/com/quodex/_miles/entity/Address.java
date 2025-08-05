@@ -35,8 +35,6 @@ public class Address {
 
     private String country;
 
-    private Boolean defaultAddress;
-
     // Optional relationship to User
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
